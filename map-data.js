@@ -1,7 +1,7 @@
 // --- 村莊資料 ---
 const rawData = [
     { prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 1, name: "東田", x: -751, y: -172 },
-	{ prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 2, name: "赤樹", x: -131, y: -254, mapUrl: "maps/TshiahTshiu-map.html" }
+	{ prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 2, name: "赤樹", x: -131, y: -254, mapUrl: "maps/TshiahTshiu-map.html" },
 	{ prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 3, name: "中島", x: -1307, y: -343 },
         { prov: "中京", pref: "大成", county: "南安", dist: "澳口", id: 4, name: "中澳", x: -1531, y: -1010 },
         { prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 5, name: "大田", x: 148, y: 175 },
