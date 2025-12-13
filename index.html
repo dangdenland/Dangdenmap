@@ -6,7 +6,6 @@
     <title>村莊地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* 樣式保持不變 */
         body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; }
         #map { height: 100vh; width: 100vw; background-color: #f5f5f5; }
         .legend { background: rgba(255, 255, 255, 0.95); padding: 10px 15px; border-radius: 5px; border: 1px solid #bbb; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 13px; max-height: 400px; overflow-y: auto; line-height: 1.5; }
@@ -27,22 +26,20 @@
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- 關鍵修改：引入外部資料檔 -->
+<!-- 引入外部資料 -->
 <script src="map-data.js"></script> 
 
 <script>
-    // 檢查資料是否成功載入
+    // 檢查資料
     if (typeof rawData === 'undefined' || typeof railwayRoutesData === 'undefined') {
         alert("錯誤：找不到 map-data.js 資料檔，或檔案格式有誤。");
     }
 
-    // 建立名稱對座標的快速索引
     const coordMap = {};
     [...rawData, ...extraStations].forEach(v => {
         coordMap[v.name] = [-v.y, v.x]; 
     });
 
-    // 初始化地圖
     const map = L.map('map', {
         crs: L.CRS.Simple, minZoom: -6, maxZoom: 3, zoomSnap: 0.5, attributionControl: false
     });
@@ -74,7 +71,7 @@
     const railwayLayer = L.layerGroup(); 
     const railwayConstructionLayer = L.layerGroup(); 
 
-    // 邊界計算
+    // 邊界
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     rawData.forEach(v => {
         if (v.x < minX) minX = v.x; if (v.x > maxX) maxX = v.x;
@@ -83,7 +80,7 @@
     const padding = 2000;
     const gridBounds = { minX: minX - padding, maxX: maxX + padding, minY: minY - padding, maxY: maxY + padding };
 
-    // 繪製鐵路
+    // 鐵路
     function drawRailways(routes, style, layer) {
         routes.forEach(routeStr => {
             const stations = routeStr.split("-");
@@ -95,11 +92,10 @@
         });
     }
 
-    // 使用來自 map-data.js 的 railwayRoutesData
     drawRailways(railwayRoutesData.completed, { color: '#333', weight: 3, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }, railwayLayer);
     drawRailways(railwayRoutesData.construction, { color: '#e67e22', weight: 3, opacity: 0.8, dashArray: '5, 10', lineCap: 'round' }, railwayConstructionLayer);
 
-    // 建立村莊與標籤
+    // 村莊與標籤
     const bounds = [];
     const labelObjects = []; 
 
@@ -109,10 +105,9 @@
         const distKey = v.dist || "直轄";
         const color = districtColors[`${v.county}-${distKey}`] || "#333";
         
-        // --- 新增的邏輯開始 ---
+        // --- 按鈕邏輯開始 ---
         let linkHtml = "";
         if (v.mapUrl) {
-            // 這裡設計了一個藍色的按鈕樣式
             linkHtml = `
                 <div style="margin-top:10px; text-align:center;">
                     <a href="${v.mapUrl}" target="_blank" style="
@@ -131,9 +126,8 @@
                 </div>
             `;
         }
-        // --- 新增的邏輯結束 ---
-        
-        // 組合 Popup 內容
+        // --- 按鈕邏輯結束 ---
+
         const popupContent = `
             <div style="text-align:center">
                 <strong style="font-size:16px">${v.name}</strong>
@@ -143,11 +137,10 @@
                     ${v.county}縣 ${v.dist ? v.dist + '郡' : '(直轄)'}
                 </div>
                 <div style="font-size:12px; color:#666; margin-top:5px;">座標: (${v.x}, ${v.y})</div>
-                ${linkHtml} <!-- 這裡插入按鈕 -->
+                ${linkHtml}
             </div>
         `;
         
-             
         const marker = L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#333", weight: 1, opacity: 1, fillOpacity: 1 });
         marker.bindPopup(popupContent);
         villageLayer.addLayer(marker);
