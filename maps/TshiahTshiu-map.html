@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>赤樹輕軌</title>
+    <title>赤樹村環狀線 (綠色系拓撲圖)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+        /* 1. 背景色：維持舊版的米白色 */
         body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f9f9f9; }
         #map { height: 100vh; width: 100vw; }
         
+        /* 2. 返回按鈕 */
         .back-btn {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
             background-color: #333; color: white; padding: 10px 20px; text-decoration: none;
@@ -17,27 +19,36 @@
         }
         .back-btn:hover { background-color: #555; }
 
-        /* --- 站點標籤 --- */
+        /* 3. 站點標籤 (綠色系) */
         .station-label-wrapper { background: transparent; border: none; }
+        
         .station-label-content {
-            position: absolute;
-            left: 50%; top: 50%; /* 基準點設為中心 */
-            transform: translate(-50%, -50%); /* 居中 */
-            
+            /* 基礎樣式：白底、綠框、膠囊狀 */
             background-color: #fff;
-            border: 2px solid #e91e63; /* 環狀線代表色 (例如粉紅/洋紅) */
+            border: 2px solid #2e7d32; /* 深綠色邊框 */
             color: #333;
-            border-radius: 15px;
-            padding: 4px 10px;
-            font-size: 13px; font-weight: bold;
-            white-space: nowrap; width: max-content;
-            box-shadow: 1px 1px 4px rgba(0,0,0,0.2);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 14px; 
+            font-weight: bold;
+            white-space: nowrap; 
+            width: max-content;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.15);
             cursor: pointer;
+            
+            /* 絕對定位初始值，會透過 JS 動態修改 transform 來避免壓線 */
+            position: absolute;
+            left: 0; top: 0;
         }
-        .station-label-content:hover { background-color: #fce4ec; z-index: 100; }
+
+        .station-label-content:hover {
+            background-color: #e8f5e9; /* 滑鼠移過去變淺綠色 */
+            z-index: 100;
+        }
         
         /* Popup 樣式 */
-        .leaflet-popup-content h3 { margin: 0 0 5px 0; color: #e91e63; border-bottom: 2px solid #eee; padding-bottom: 5px;}
+        .leaflet-popup-content-wrapper { border-radius: 8px; }
+        .leaflet-popup-content h3 { margin: 0 0 5px 0; color: #2e7d32; border-bottom: 2px solid #eee; padding-bottom: 5px;}
     </style>
 </head>
 <body>
@@ -48,7 +59,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     // ==========================================
-    // 1. 站點資料 (只需要 ID 與名稱，座標會自動算)
+    // 1. 站點資料
     // ==========================================
     const stations = [
         { id: "tt1", name: "赤樹地鐵站", desc: "長途列車轉乘點。" },
@@ -59,36 +70,69 @@
         { id: "tt6", name: "山後", desc: "可轉搭中沙便鐵。" },
         { id: "tt7", name: "建興", desc: "沙漠中的站點。" },
         { id: "tt8", name: "烏林", desc: "可轉乘中沙便鐵，或前往大田、大樹地區。" }
+        
     ];
 
     // 設定圓形參數
     const centerX = 0;
     const centerY = 0;
-    const radius = 250; // 圓的半徑 (像素)
+    const radius = 220; // 軌道半徑
+    const labelDistance = 45; // 標籤距離站點多遠 (像素)
     
     // ==========================================
-    // 2. 自動計算座標邏輯
+    // 2. 自動計算座標與標籤位置
     // ==========================================
     
-    // 我們從 -90度 (正上方) 開始排，這樣第一站會在最上面
+    // 從 -90度 (正上方 12點鐘) 開始
     const startAngle = -Math.PI / 2; 
 
     stations.forEach((s, index) => {
-        // 計算角度：將圓餅平均切分
+        // 計算角度
         const angle = startAngle + (index / stations.length) * (2 * Math.PI);
         
-        // 三角函數計算座標
+        // 1. 站點座標
         s.x = centerX + radius * Math.cos(angle);
         s.y = centerY + radius * Math.sin(angle);
-        
-        // 轉為 Leaflet 格式 [-y, x]
         s.latLng = [-s.y, s.x];
         
-        // 計算標籤的位置 (讓標籤往圓心外推 40px)
-        const labelRadius = radius + 40;
-        s.labelX = centerX + labelRadius * Math.cos(angle);
-        s.labelY = centerY + labelRadius * Math.sin(angle);
+        // 2. 標籤座標 (往外推 labelDistance)
+        s.labelX = centerX + (radius + labelDistance) * Math.cos(angle);
+        s.labelY = centerY + (radius + labelDistance) * Math.sin(angle);
         s.labelLatLng = [-s.labelY, s.labelX];
+
+        // 3. ★關鍵：計算標籤的錨點方向 (解決壓線問題) ★
+        // 我們將圓分成四個象限，根據角度決定 transform 的值
+        // Leaflet 的 y 是負的，計算角度時要注意 (這裡使用純幾何角度判斷即可)
+        // 角度範圍 0 ~ 2PI (或 -PI/2 ~ 3PI/2)
+        
+        let transformCSS = "";
+        const deg = (angle * 180 / Math.PI) % 360; // 轉成角度方便思考
+        
+        // 正規化角度到 0~360
+        let normDeg = deg;
+        if (normDeg < 0) normDeg += 360;
+
+        // 判斷邏輯：
+        // 右側 (315度 ~ 45度): 靠左對齊 (translate 0, -50%)
+        // 下側 (45度 ~ 135度): 向上對齊 (translate -50%, 0)
+        // 左側 (135度 ~ 225度): 靠右對齊 (translate -100%, -50%)
+        // 上側 (225度 ~ 315度): 向下對齊 (translate -50%, -100%)
+        
+        if (normDeg >= 330 || normDeg < 30) {
+            // 右側 (3點鐘)：文字往右長
+            transformCSS = "translate(10px, -50%)"; 
+        } else if (normDeg >= 30 && normDeg < 150) {
+            // 下側 (6點鐘)：文字置中，稍微往下
+            transformCSS = "translate(-50%, 10px)";
+        } else if (normDeg >= 150 && normDeg < 210) {
+            // 左側 (9點鐘)：文字往左長
+            transformCSS = "translate(calc(-100% - 10px), -50%)";
+        } else {
+            // 上側 (12點鐘)：文字置中，稍微往上
+            transformCSS = "translate(-50%, calc(-100% - 10px))";
+        }
+        
+        s.transformStyle = transformCSS;
     });
 
     // ==========================================
@@ -100,38 +144,36 @@
         minZoom: -2, maxZoom: 1, zoomSnap: 0.1, zoomControl: false, attributionControl: false
     });
 
-    // (A) 繪製軌道 (多邊形/圓)
-    // 取得所有點的座標
+    // (A) 繪製軌道
     const routeLatLngs = stations.map(s => s.latLng);
-    
-    // ★關鍵：要把第一個點加到最後面，線才會閉合
-    routeLatLngs.push(routeLatLngs[0]);
+    routeLatLngs.push(routeLatLngs[0]); // 閉合圓圈
 
-    // 繪製外框線
-    L.polyline(routeLatLngs, { color: '#880e4f', weight: 12, lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    // 繪製主色線
-    L.polyline(routeLatLngs, { color: '#e91e63', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    // 外框 (深綠 #1b5e20)
+    L.polyline(routeLatLngs, { color: '#1b5e20', weight: 14, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    // 內線 (主綠 #4caf50)
+    L.polyline(routeLatLngs, { color: '#4caf50', weight: 8, lineCap: 'round', lineJoin: 'round' }).addTo(map);
 
     // (B) 繪製站點與標籤
     stations.forEach(s => {
         // Popup
-        const popupContent = `<h3>${s.name}</h3><p>${s.desc}</p>`;
+        const popupContent = `<h3>${s.name}</h3><p style="margin:5px 0; color:#333;">${s.desc}</p>`;
 
-        // 站點圓點
+        // 圓點 (白底深綠框)
         const dot = L.circleMarker(s.latLng, {
             radius: 10,
             fillColor: "#fff",
-            color: "#880e4f",
-            weight: 3,
+            color: "#1b5e20",
+            weight: 4,
             fillOpacity: 1
         }).addTo(map);
         dot.bindPopup(popupContent);
 
-        // 文字標籤
+        // 標籤
         const label = L.marker(s.labelLatLng, {
             icon: L.divIcon({
                 className: 'station-label-wrapper',
-                html: `<div class="station-label-content">${s.name}</div>`,
+                // 將計算好的 transform 套用到 style
+                html: `<div class="station-label-content" style="transform: ${s.transformStyle}">${s.name}</div>`,
                 iconSize: [0, 0], iconAnchor: [0, 0]
             })
         }).addTo(map);
@@ -139,8 +181,8 @@
         label.on('click', () => dot.openPopup());
     });
 
-    // 自動調整視野 (加上 padding)
-    const bounds = L.latLngBounds(routeLatLngs).pad(0.3);
+    // 自動視野
+    const bounds = L.latLngBounds(routeLatLngs).pad(0.4); // 稍微多留一點白邊給文字
     map.fitBounds(bounds);
 
 </script>
