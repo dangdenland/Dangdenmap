@@ -108,8 +108,32 @@
         bounds.push(latLng);
         const distKey = v.dist || "直轄";
         const color = districtColors[`${v.county}-${distKey}`] || "#333";
-        const distText = v.dist ? `${v.dist}郡` : "";
         
+        // --- 新增的邏輯開始 ---
+        let linkHtml = "";
+        if (v.mapUrl) {
+            // 這裡設計了一個藍色的按鈕樣式
+            linkHtml = `
+                <div style="margin-top:10px; text-align:center;">
+                    <a href="${v.mapUrl}" target="_blank" style="
+                        display: inline-block;
+                        text-decoration: none;
+                        background-color: #007bff;
+                        color: white;
+                        padding: 5px 12px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                        transition: background 0.2s;
+                    " onmouseover="this.style.backgroundColor='#0056b3'" 
+                      onmouseout="this.style.backgroundColor='#007bff'">
+                        查看村莊軌道圖 ➜
+                    </a>
+                </div>
+            `;
+        }
+        // --- 新增的邏輯結束 ---
+        
+        // 組合 Popup 內容
         const popupContent = `
             <div style="text-align:center">
                 <strong style="font-size:16px">${v.name}</strong>
@@ -119,9 +143,11 @@
                     ${v.county}縣 ${v.dist ? v.dist + '郡' : '(直轄)'}
                 </div>
                 <div style="font-size:12px; color:#666; margin-top:5px;">座標: (${v.x}, ${v.y})</div>
+                ${linkHtml} <!-- 這裡插入按鈕 -->
             </div>
         `;
         
+             
         const marker = L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#333", weight: 1, opacity: 1, fillOpacity: 1 });
         marker.bindPopup(popupContent);
         villageLayer.addLayer(marker);
