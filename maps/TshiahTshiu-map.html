@@ -6,45 +6,68 @@
     <title>赤樹村內部軌道圖 (赤樹輕軌)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f0fdf4; /* 淺綠色背景代表村莊 */ }
+        /* 背景色改為米白色，讓路線更清楚 */
+        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f9f9f9; }
         #map { height: 100vh; width: 100vw; }
         
-        /* --- 返回按鈕樣式 --- */
+        /* --- 返回按鈕 --- */
         .back-btn {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 1000; /* 確保在最上層 */
-            background-color: #333;
-            color: white;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
+            top: 20px; left: 20px; z-index: 1000;
+            background-color: #333; color: white;
+            padding: 10px 20px; text-decoration: none;
+            border-radius: 5px; font-weight: bold;
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
             transition: background 0.3s;
-            display: flex;
-            align-items: center;
         }
         .back-btn:hover { background-color: #555; }
         
-        /* --- 站點標籤樣式 --- */
-        .station-label {
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid #2e7d32;
-            color: #1b5e20;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: bold;
-            white-space: nowrap;
-            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+        /* --- 站點標籤 (修正版) --- */
+        .station-label-wrapper {
+            background: transparent;
+            border: none;
         }
+        
+        .station-label-content {
+            /* 1. 位置與外觀 */
+            position: absolute;
+            left: 50%;
+            top: 0;
+            transform: translate(-50%, 0); /* 水平置中 */
+            
+            background-color: #fff;
+            border: 2px solid #2e7d32; /* 路線代表色邊框 */
+            color: #333;
+            border-radius: 20px; /* 膠囊狀圓角 */
+            padding: 5px 12px;
+            
+            /* 2. 字體設定 */
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+            
+            /* 3. 關鍵：確保方框包住文字 */
+            white-space: nowrap;    /* 禁止換行 */
+            width: max-content;     /* 寬度隨內容撐開 */
+            display: inline-block;
+            
+            /* 4. 陰影與互動 */
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.15);
+            cursor: pointer;
+        }
+
+        .station-label-content:hover {
+            background-color: #e8f5e9;
+            z-index: 100;
+        }
+        
+        /* 調整 Popup 樣式 */
+        .leaflet-popup-content-wrapper { border-radius: 8px; }
+        .leaflet-popup-content h3 { margin: 0 0 5px 0; color: #2e7d32; border-bottom: 2px solid #eee; padding-bottom: 5px;}
     </style>
 </head>
 <body>
 
-<!-- 返回按鈕：點擊後會回到上一層目錄的 index.html -->
 <a href="../index.html" class="back-btn">⬅ 返回大地圖</a>
 
 <div id="map"></div>
@@ -52,96 +75,106 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     // ==========================================
-    // 1. 站點與路線資料 (未來修改這裡即可)
+    // 1. 站點資料 (拓撲圖設定)
     // ==========================================
-    
-    // 定義站點：x, y 是自訂的相對座標
+    // x, y: 這裡是畫圖用的「相對座標」，為了美觀，我把它們排成一條直線 (y都一樣)
+    // realX, realY: 這是原本在大地圖上的座標，只顯示在說明欄
     const stations = [
-        { id: "st1", name: "赤樹站 (轉運站)", x: 0, y: 0, desc: "可轉乘大成線鐵路" },
-        { id: "st2", name: "村役所", x: 150, y: 120, desc: "赤樹村行政中心" },
-        { id: "st3", name: "圖書館", x: 280, y: 250, desc: "赤樹立圖書館" },
-        { id: "st4", name: "山頂", x: 100, y: 450, desc: "赤樹山觀景台" }
+        { 
+            id: "st1", name: "赤樹站 (轉運站)", 
+            x: 100, y: 300, 
+            realX: -131, realY: -254,
+            desc: "赤樹村門戶，可轉乘大成線鐵路往東田或海線。" 
+        },
+        { 
+            id: "st2", name: "村役所", 
+            x: 250, y: 300, 
+            realX: -135, realY: -260, // 假設值
+            desc: "赤樹村行政中心，辦理戶籍與觀光諮詢。" 
+        },
+        { 
+            id: "st3", name: "圖書館", 
+            x: 400, y: 300, 
+            realX: -140, realY: -270, // 假設值
+            desc: "赤樹村立圖書館，擁有豐富的鐵道文獻。" 
+        },
+        { 
+            id: "st4", name: "山頂", 
+            x: 550, y: 300, 
+            realX: -150, realY: -280, // 假設值
+            desc: "赤樹山觀景台，可俯瞰整個大成平原。" 
+        }
     ];
 
-    // 定義路線連接順序 (填入 id)
+    // 定義路線連接順序
     const routeOrder = ["st1", "st2", "st3", "st4"];
 
     // ==========================================
-    // 2. 地圖程式邏輯
+    // 2. 地圖繪製邏輯
     // ==========================================
 
     const map = L.map('map', {
-        crs: L.CRS.Simple, // 使用平面座標
-        minZoom: -2,
-        maxZoom: 2,
-        zoomSnap: 0.5,
+        crs: L.CRS.Simple,
+        minZoom: -1,
+        maxZoom: 1,
+        zoomSnap: 0.1,
+        zoomControl: false, // 隱藏縮放控制項，讓畫面更像看板
         attributionControl: false
     });
 
-    // 計算邊界以自動縮放
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    const latLngs = []; // 儲存畫線用的座標點
+    // 建立座標對應
+    stations.forEach(s => s.latLng = [-s.y, s.x]);
 
+    // (A) 繪製軌道線
+    const routeLatLngs = routeOrder.map(id => stations.find(s => s.id === id).latLng);
+
+    // 外框線 (深色邊框)
+    L.polyline(routeLatLngs, { color: '#1b5e20', weight: 12, lineCap: 'round' }).addTo(map);
+    // 主色線 (鮮豔綠)
+    L.polyline(routeLatLngs, { color: '#4caf50', weight: 8, lineCap: 'round' }).addTo(map);
+
+    // (B) 繪製站點與標籤
     stations.forEach(s => {
-        // 將 x, y 轉換為 Leaflet 座標 [-y, x]
-        const latLng = [-s.y, s.x];
-        s.latLng = latLng; // 存回去方便後續使用
-        
-        // 邊界計算
-        if (s.x < minX) minX = s.x; if (s.x > maxX) maxX = s.x;
-        if (s.y < minY) minY = s.y; if (s.y > maxY) maxY = s.y;
-    });
+        // 1. Popup 內容 (包含大地圖座標)
+        const popupContent = `
+            <h3>${s.name}</h3>
+            <p style="margin:5px 0 10px 0; font-size:14px;">${s.desc}</p>
+            <div style="font-size:12px; color:#666; background:#f5f5f5; padding:4px; border-radius:4px;">
+                大地圖座標: (${s.realX}, ${s.realY})
+            </div>
+        `;
 
-    // 依照路線順序抓出座標來畫線
-    const routeLatLngs = routeOrder.map(id => {
-        const station = stations.find(s => s.id === id);
-        return station.latLng;
-    });
-
-    // (A) 繪製軌道線 (輕軌風格：綠色粗線)
-    L.polyline(routeLatLngs, {
-        color: '#4caf50', // 輕軌綠
-        weight: 6,
-        opacity: 0.8,
-        lineJoin: 'round'
-    }).addTo(map);
-    
-    // 軌道中心裝飾線 (白色細線，讓它看起來像軌道)
-    L.polyline(routeLatLngs, {
-        color: '#fff', 
-        weight: 2,
-        dashArray: '10, 10',
-        opacity: 0.8
-    }).addTo(map);
-
-    // (B) 繪製站點
-    stations.forEach(s => {
-        // 圓點
-        L.circleMarker(s.latLng, {
-            radius: 8,
+        // 2. 圓形站點 (捷運風格：白底粗框)
+        const dot = L.circleMarker(s.latLng, {
+            radius: 10,
             fillColor: "#fff",
-            color: "#2e7d32", // 深綠邊框
-            weight: 3,
+            color: "#1b5e20",
+            weight: 4,
             fillOpacity: 1
-        }).addTo(map).bindPopup(`<b>${s.name}</b><br>${s.desc}`);
+        }).addTo(map);
+        dot.bindPopup(popupContent);
 
-        // 文字標籤
-        L.marker(s.latLng, {
+        // 3. 文字標籤 (位於站點下方)
+        // 使用 y-30 讓文字出現在點的下方 (Leaflet座標 y是負的，所以往負的方向是向下)
+        const labelLatLng = [s.latLng[0] - 25, s.latLng[1]]; 
+
+        const label = L.marker(labelLatLng, {
             icon: L.divIcon({
                 className: 'station-label-wrapper',
-                html: `<div class="station-label">${s.name}</div>`,
-                iconSize: [0, 0],
-                iconAnchor: [20, -10] // 稍微偏右上方顯示
+                html: `<div class="station-label-content">${s.name}</div>`,
+                iconSize: [0, 0], // 讓 div 自由撐開
+                iconAnchor: [0, 0] // 透過 CSS transform 居中，這裡設 0
             })
         }).addTo(map);
+        
+        // 點擊文字也能打開圓點的說明
+        label.on('click', () => dot.openPopup());
     });
 
-    // 自動縮放視野 (留一點邊距 padding)
+    // 自動置中並鎖定視野 (讓它看起來像一張固定的圖)
+    // 計算邊界並留白
     const padding = 100;
-    const bounds = [
-        [-(minY - padding), minX - padding],
-        [-(maxY + padding), maxX + padding]
-    ];
+    const bounds = L.latLngBounds(routeLatLngs).pad(0.3); // pad 0.3 代表留白 30%
     map.fitBounds(bounds);
 
 </script>
