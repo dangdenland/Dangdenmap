@@ -245,6 +245,8 @@
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function (map) {
         const div = L.DomUtil.create('div', 'legend');
+         L.DomEvent.disableScrollPropagation(div);
+         L.DomEvent.disableClickPropagation(div);
         div.innerHTML = "<h4>圖例</h4><small style='color:#666'>*可拖曳名稱標籤</small><br><br>";
         Object.keys(hierarchy).sort((a,b) => countyHues[a] - countyHues[b]).forEach(county => {
             const districts = Array.from(hierarchy[county]).sort();
