@@ -3,37 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>村莊地圖 (附校正工具)</title>
+    <title>村莊地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; }
         #map { height: 100vh; width: 100vw; background-color: #f5f5f5; }
+        
+        /* --- 圖例樣式 --- */
         .legend { background: rgba(255, 255, 255, 0.95); padding: 10px 15px; border-radius: 5px; border: 1px solid #bbb; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 13px; max-height: 60vh; overflow-y: auto; line-height: 1.5; -webkit-overflow-scrolling: touch; }
         .legend h4 { margin: 0 0 8px 0; font-size: 15px; border-bottom: 2px solid #666; padding-bottom: 5px; }
         .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
         .legend-color { width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; border: 1px solid #666; flex-shrink: 0; }
         .legend-line { width: 20px; height: 3px; margin-right: 8px; display: inline-block; vertical-align: middle; }
+        
+        /* --- 標籤與彈窗 --- */
         .grid-label { font-size: 10px; color: #999; white-space: nowrap; }
         .village-label-wrapper { background: transparent; border: none; }
-        .village-label-content { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); display: inline-block; width: max-content; min-width: 40px; box-sizing: border-box; font-size: 12px; font-weight: bold; color: #000; background-color: #fff; padding: 4px 8px; border: 1px solid #666; border-radius: 4px; white-space: nowrap; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); cursor: move; z-index: 10; user-select: none; -webkit-user-select: none; }
+        .village-label-content { 
+            position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); 
+            display: inline-block; width: max-content; min-width: 40px; box-sizing: border-box; 
+            font-size: 12px; font-weight: bold; color: #000; background-color: #fff; 
+            padding: 4px 8px; border: 1px solid #666; border-radius: 4px; 
+            white-space: nowrap; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); 
+            cursor: move; z-index: 10; user-select: none; -webkit-user-select: none; 
+        }
         .village-label-content:hover { background-color: #f0f8ff; border-color: #007bff; z-index: 20; }
         .leaflet-popup-content { font-size: 14px; line-height: 1.6; }
 
-        /* 校正面板樣式 */
-        #calibration-panel {
-            position: fixed; bottom: 20px; left: 20px; z-index: 9999;
-            background: rgba(0, 0, 0, 0.8); color: #fff; padding: 15px;
-            border-radius: 8px; width: 220px; font-size: 12px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.5);
-        }
-        #calibration-panel h4 { margin: 0 0 10px 0; border-bottom: 1px solid #555; padding-bottom: 5px; color: #ffcc00; }
-        .cal-row { margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .cal-row input { width: 80px; padding: 2px; text-align: right; }
-        .cal-row label { width: 80px; }
-        #calibration-panel .hint { font-size: 11px; color: #ccc; margin-top: 5px; line-height: 1.4; }
-
+        /* --- 列印設定 --- */
         @media print { 
-            .leaflet-control-container, #calibration-panel { display: none !important; } 
+            .leaflet-control-container { display: none !important; } 
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
             .legend { position: absolute; bottom: 20px; right: 20px; box-shadow: none; border: 1px solid #000; } 
             #map { height: 100%; width: 100%; } 
@@ -44,44 +43,24 @@
 
 <div id="map"></div>
 
-<!-- 校正面板 -->
-<div id="calibration-panel" style="display:none;">
-    <h4>🗺️ 地圖底圖校正器</h4>
-    <div class="cal-row"><label>上邊界(Y):</label><input type="number" id="in-top" step="100"></div>
-    <div class="cal-row"><label>下邊界(Y):</label><input type="number" id="in-bottom" step="100"></div>
-    <div class="cal-row"><label>左邊界(X):</label><input type="number" id="in-left" step="100"></div>
-    <div class="cal-row"><label>右邊界(X):</label><input type="number" id="in-right" step="100"></div>
-    <div class="hint">
-        1. 調整數值直到圖片對齊圓點。<br>
-        2. 記下數值並填回 HTML 程式碼。<br>
-        3. 將 calibrationMode 設為 false。
-    </div>
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- 引入外部資料 -->
 <script src="map-data.js"></script> 
 
 <script>
     // ==========================================
-    // 🔧 設定區 (調整完畢後請更新這裡)
+    // 🔧 設定區 (已填入校正後的數值)
     // ==========================================
     const mapConfig = {
-        // 設定是否開啟「校正模式」(True=開啟面板, False=關閉)
-        calibrationMode: False, 
-
-        // 圖片檔名
-        imageUrl: 'map_bg.png',
-
-        // 這裡填入校正好的數值 (對應遊戲座標 Y 和 X)
-        // 預設填入您提供的範圍：X(-1600~10000), Y(1000~-10000)
-        topY: -9834,   // 圖片上緣對應的 Game Y
-        bottomY: 1000,  // 圖片下緣對應的 Game Y
-        leftX: -1600,   // 圖片左緣對應的 Game X
-        rightX: 9806   // 圖片右緣對應的 Game X
+        imageUrl: 'map_bg.png', // 請確保檔名正確
+        
+        // 校正後的數值
+        topY: -9834,    // 圖片上緣的遊戲座標 Y
+        bottomY: 1000,  // 圖片下緣的遊戲座標 Y
+        leftX: -1600,   // 圖片左緣的遊戲座標 X
+        rightX: 9806    // 圖片右緣的遊戲座標 X
     };
     // ==========================================
-
 
     if (typeof rawData === 'undefined' || typeof railwayRoutesData === 'undefined') {
         alert("錯誤：找不到 map-data.js 資料檔，或檔案格式有誤。");
@@ -263,56 +242,17 @@
     map.on('zoomend', drawGrid);
 
     // ==========================================
-    // 🖼️ 地形底圖邏輯 (含校正功能)
+    // 🖼️ 地形底圖 (應用校正後的數值)
     // ==========================================
     
-    // 初始化變數
-    let imgTopY = mapConfig.topY;
-    let imgBottomY = mapConfig.bottomY;
-    let imgLeftX = mapConfig.leftX;
-    let imgRightX = mapConfig.rightX;
-
-    // 建立圖片圖層 (Lat = -Y)
-    let mapImageLayer = L.imageOverlay(mapConfig.imageUrl, [[-imgTopY, imgLeftX], [-imgBottomY, imgRightX]], {
-        opacity: 0.9, 
-        zIndex: -1 
-    });
+    // 將 Y 軸數值轉換為 Leaflet 的 Lat (取負號)
+    // 上邊界: Game Y = -9834 -> Lat = 9834
+    // 下邊界: Game Y = 1000  -> Lat = -1000
+    const mapImageLayer = L.imageOverlay(mapConfig.imageUrl, 
+        [[-mapConfig.topY, mapConfig.leftX], [-mapConfig.bottomY, mapConfig.rightX]], 
+        { opacity: 0.9, zIndex: -1 }
+    );
     mapImageLayer.addTo(map);
-
-    // 校正模式邏輯
-    if (mapConfig.calibrationMode) {
-        const panel = document.getElementById('calibration-panel');
-        panel.style.display = 'block';
-
-        const inTop = document.getElementById('in-top');
-        const inBottom = document.getElementById('in-bottom');
-        const inLeft = document.getElementById('in-left');
-        const inRight = document.getElementById('in-right');
-
-        // 填入初始值
-        inTop.value = imgTopY;
-        inBottom.value = imgBottomY;
-        inLeft.value = imgLeftX;
-        inRight.value = imgRightX;
-
-        // 更新函數
-        function updateImageBounds() {
-            imgTopY = parseFloat(inTop.value);
-            imgBottomY = parseFloat(inBottom.value);
-            imgLeftX = parseFloat(inLeft.value);
-            imgRightX = parseFloat(inRight.value);
-
-            // 更新 Leaflet 圖片邊界 (Lat = -Y)
-            const newBounds = [[-imgTopY, imgLeftX], [-imgBottomY, imgRightX]];
-            mapImageLayer.setBounds(newBounds);
-        }
-
-        // 監聽輸入框
-        inTop.addEventListener('input', updateImageBounds);
-        inBottom.addEventListener('input', updateImageBounds);
-        inLeft.addEventListener('input', updateImageBounds);
-        inRight.addEventListener('input', updateImageBounds);
-    }
 
     // --- 更新介面控制 ---
     const baseMaps = {
