@@ -63,7 +63,7 @@
         });
     });
 
-    // 圖層
+    // 圖層宣告
     const villageLayer = L.layerGroup();
     const labelLayer = L.layerGroup(); 
     const leaderLineLayer = L.layerGroup();
@@ -71,7 +71,7 @@
     const railwayLayer = L.layerGroup(); 
     const railwayConstructionLayer = L.layerGroup(); 
 
-    // 邊界
+    // 邊界計算 (用於格線)
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     rawData.forEach(v => {
         if (v.x < minX) minX = v.x; if (v.x > maxX) maxX = v.x;
@@ -80,7 +80,7 @@
     const padding = 2000;
     const gridBounds = { minX: minX - padding, maxX: maxX + padding, minY: minY - padding, maxY: maxY + padding };
 
-    // 鐵路
+    // 鐵路繪製
     function drawRailways(routes, style, layer) {
         routes.forEach(routeStr => {
             const stations = routeStr.split("-");
@@ -105,48 +105,31 @@
         const distKey = v.dist || "直轄";
         const color = districtColors[`${v.county}-${distKey}`] || "#333";
         
-        // --- 按鈕邏輯 ---
         let linkHtml = "";
         if (v.mapUrl) {
             linkHtml = `
                 <div style="margin-top:12px; text-align:center;">
                     <a href="${v.mapUrl}" target="_blank" style="
-                        display: inline-block;
-                        text-decoration: none;
-                        background-color: #007bff;
-                        color: white;
-                        padding: 6px 12px;
-                        border-radius: 4px;
-                        font-size: 12px;
-                        font-weight: bold;
-                        transition: background 0.2s;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-                    " onmouseover="this.style.backgroundColor='#0056b3'" 
-                      onmouseout="this.style.backgroundColor='#007bff'">
+                        display: inline-block; text-decoration: none; background-color: #007bff; color: white;
+                        padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold;
+                        transition: background 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                    " onmouseover="this.style.backgroundColor='#0056b3'" onmouseout="this.style.backgroundColor='#007bff'">
                         查看村莊軌道圖 ➜
                     </a>
-                </div>
-            `;
+                </div>`;
         }
         
-        // --- [修正] Popup 內容對齊 ---
-        // 修正重點：拿掉了內層的 style="text-align:left"，統一用外層的 center
-        // 增加了行高 (line-height) 與邊距 (margin) 讓排版更透氣
         const popupContent = `
             <div style="text-align:center; min-width: 160px;">
                 <strong style="font-size:16px; display:block; margin-bottom:5px;">${v.name}</strong>
                 <hr style="margin:5px 0; border:0; border-top:1px solid #ccc">
-                
                 <div style="color:#333; margin: 6px 0; line-height:1.5;">
                     ${v.prov}省 ${v.pref}府<br>
                     ${v.county}縣 ${v.dist ? v.dist + '郡' : '(直轄)'}
                 </div>
-                
                 <div style="font-size:12px; color:#666;">座標: (${v.x}, ${v.y})</div>
-                
                 ${linkHtml}
-            </div>
-        `;
+            </div>`;
         
         const marker = L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#333", weight: 1, opacity: 1, fillOpacity: 1 });
         marker.bindPopup(popupContent);
@@ -172,13 +155,6 @@
         labelObjects.push({ marker: labelMarker, line: leaderLine, origin: latLng, x: 0, y: 0 });
         labelLayer.addLayer(labelMarker);
     });
-
-    gridLayer.addTo(map);
-    railwayConstructionLayer.addTo(map);
-    railwayLayer.addTo(map);
-    leaderLineLayer.addTo(map);
-    villageLayer.addTo(map);
-    labelLayer.addTo(map);
 
     // 自動佈局
     function autoLayoutLabels() {
@@ -238,10 +214,42 @@
     drawGrid();
     map.on('zoomend', drawGrid);
 
-    // 介面與圖例
-    L.control.layers(null, { "村莊點位": villageLayer, "村莊名稱 (可拖曳)": labelLayer, "鐵路 (已通車)": railwayLayer, "鐵路 (興建中)": railwayConstructionLayer, "引導線": leaderLineLayer, "坐標格線": gridLayer }, {collapsed: false}).addTo(map);
+    // --- 新增：地形底圖 (請確保檔名為 map_bg.jpg) ---
+    // 座標轉換邏輯：Y軸翻轉 (Lat = -Y)
+    // 上(Y=-10240 -> Lat=10240), 左(X=-11776)
+    // 下(Y=11263 -> Lat=-11263), 右(X=10239)
+    const imageBounds = [[10240, -11776], [-11263, 10239]];
+    const imageUrl = 'map_bg.png'; 
+
+    const mapImageLayer = L.imageOverlay(imageUrl, imageBounds, {
+        opacity: 0.9, 
+        zIndex: -1 
+    });
+    mapImageLayer.addTo(map);
+
+    // --- 更新介面控制 (Base Maps) ---
+    // 定義底圖切換 (Base Maps)
+    const baseMaps = {
+        "地形圖": mapImageLayer,
+        "空白背景": L.layerGroup() // 選擇這個會隱藏圖片
+    };
+
+    // 定義疊加圖層 (Overlays)
+    const overlayMaps = {
+        "村莊點位": villageLayer,
+        "村莊名稱 (可拖曳)": labelLayer,
+        "鐵路 (已通車)": railwayLayer,
+        "鐵路 (興建中)": railwayConstructionLayer,
+        "引導線": leaderLineLayer,
+        "坐標格線": gridLayer
+    };
+
+    L.control.layers(baseMaps, overlayMaps, {collapsed: false}).addTo(map);
+    
+    // 初始化視野
     if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
 
+    // 圖例
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function (map) {
         const div = L.DomUtil.create('div', 'legend');
