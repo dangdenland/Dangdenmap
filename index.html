@@ -214,11 +214,11 @@
     drawGrid();
     map.on('zoomend', drawGrid);
 
-    // --- 新增：地形底圖 (請確保檔名為 map_bg.jpg) ---
-    // 座標轉換邏輯：Y軸翻轉 (Lat = -Y)
-    // 上(Y=-10240 -> Lat=10240), 左(X=-11776)
-    // 下(Y=11263 -> Lat=-11263), 右(X=10239)
-    const imageBounds = [[10240, -11776], [-11263, 10239]];
+    // --- 新增：地形底圖 (座標修正版) ---
+    // 左(West): -1600, 右(East): 10000
+    // 上(North): Y=-10000 -> Lat=10000
+    // 下(South): Y=1000   -> Lat=-1000
+    const imageBounds = [[10000, -1600], [-1000, 10000]];
     const imageUrl = 'map_bg.png'; 
 
     const mapImageLayer = L.imageOverlay(imageUrl, imageBounds, {
@@ -228,13 +228,11 @@
     mapImageLayer.addTo(map);
 
     // --- 更新介面控制 (Base Maps) ---
-    // 定義底圖切換 (Base Maps)
     const baseMaps = {
         "地形圖": mapImageLayer,
-        "空白背景": L.layerGroup() // 選擇這個會隱藏圖片
+        "空白背景": L.layerGroup()
     };
 
-    // 定義疊加圖層 (Overlays)
     const overlayMaps = {
         "村莊點位": villageLayer,
         "村莊名稱 (可拖曳)": labelLayer,
