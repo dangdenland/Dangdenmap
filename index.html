@@ -222,7 +222,9 @@
     drawGrid();
     map.on('zoomend', drawGrid);
 
-    // 載入底圖 (讀取 config.js 中的 mapSettings)
+// ==========================================
+    // 🖼️ 載入地形底圖 (使用 mapSettings)
+    // ==========================================
     const mapImageLayer = L.imageOverlay(
         mapSettings.imageName, 
         [
@@ -231,18 +233,41 @@
         ], 
         { opacity: 0.9, zIndex: -1 }
     );
-    mapImageLayer.addTo(map);
+    // 注意：這裡不要寫 .addTo(map)，這樣預設就不會載入圖片
 
-    // 介面控制
-    const baseMaps = { "地形圖": mapImageLayer, "空白背景": L.layerGroup() };
+    // 建立一個空白圖層
+    const blankLayer = L.layerGroup();
+    // 將空白圖層加入地圖 (這行決定了預設顯示空白)
+    blankLayer.addTo(map);
+
+    // ==========================================
+    // 🎛️ 介面控制 (圖層選單)
+    // ==========================================
+    
+    // Base Maps (單選：決定背景)
+    const baseMaps = { 
+        "空白背景": blankLayer,   // 預設選中這個
+        "地形圖": mapImageLayer 
+    };
+
+    // Overlay Maps (複選：決定上面蓋什麼)
+    // 想要預設顯示的，就要在上面先 .addTo(map) 過
+    // 這裡確認一下哪些有加
+    villageLayer.addTo(map);     // 預設顯示點位
+    labelLayer.addTo(map);       // 預設顯示名稱
+    leaderLineLayer.addTo(map);  // 預設顯示引導線
+    // railwayLayer.addTo(map);  // 如果想預設顯示鐵路，把這行註解拿掉
+    // gridLayer.addTo(map);     // 如果想預設顯示格線，把這行註解拿掉
+
     const overlayMaps = {
         "村莊點位": villageLayer,
         "村莊名稱 (可拖曳)": labelLayer,
+        "引導線": leaderLineLayer,
         "鐵路 (已通車)": railwayLayer,
         "鐵路 (興建中)": railwayConstructionLayer,
-        "引導線": leaderLineLayer,
         "坐標格線": gridLayer
     };
+
     L.control.layers(baseMaps, overlayMaps, {collapsed: false}).addTo(map);
     
     if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
