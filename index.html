@@ -3,173 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>村莊地圖 (校正模式)</title>
+    <title>村莊地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; }
         #map { height: 100vh; width: 100vw; background-color: #f5f5f5; }
-        
-        /* 圖例樣式 */
         .legend { background: rgba(255, 255, 255, 0.95); padding: 10px 15px; border-radius: 5px; border: 1px solid #bbb; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 13px; max-height: 60vh; overflow-y: auto; line-height: 1.5; -webkit-overflow-scrolling: touch; }
         .legend h4 { margin: 0 0 8px 0; font-size: 15px; border-bottom: 2px solid #666; padding-bottom: 5px; }
         .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
         .legend-color { width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; border: 1px solid #666; flex-shrink: 0; }
         .legend-line { width: 20px; height: 3px; margin-right: 8px; display: inline-block; vertical-align: middle; }
-        
-        /* 標籤與彈窗 */
         .grid-label { font-size: 10px; color: #999; white-space: nowrap; }
         .village-label-wrapper { background: transparent; border: none; }
-        .village-label-content { 
-            position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); 
-            display: inline-block; width: max-content; min-width: 40px; box-sizing: border-box; 
-            font-size: 12px; font-weight: bold; color: #000; background-color: #fff; 
-            padding: 4px 8px; border: 1px solid #666; border-radius: 4px; 
-            white-space: nowrap; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); 
-            cursor: move; z-index: 10; user-select: none; -webkit-user-select: none; 
-        }
+        .village-label-content { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); display: inline-block; width: max-content; min-width: 40px; box-sizing: border-box; font-size: 12px; font-weight: bold; color: #000; background-color: #fff; padding: 4px 8px; border: 1px solid #666; border-radius: 4px; white-space: nowrap; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); cursor: move; z-index: 10; user-select: none; -webkit-user-select: none; }
         .village-label-content:hover { background-color: #f0f8ff; border-color: #007bff; z-index: 20; }
         .leaflet-popup-content { font-size: 14px; line-height: 1.6; }
-
-        /* 校正面板樣式 */
-        #calibration-panel {
-            position: fixed; bottom: 20px; left: 20px; z-index: 9999;
-            background: rgba(0, 0, 0, 0.8); color: #fff; padding: 15px;
-            border-radius: 8px; width: 220px; font-size: 12px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.5);
-        }
-        #calibration-panel h4 { margin: 0 0 10px 0; border-bottom: 1px solid #555; padding-bottom: 5px; color: #ffcc00; }
-        .cal-row { margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .cal-row input { width: 80px; padding: 2px; text-align: right; }
-        
-        /* 列印設定 */
-        @media print { 
-            .leaflet-control-container, #calibration-panel { display: none !important; } 
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-            .legend { position: absolute; bottom: 20px; right: 20px; box-shadow: none; border: 1px solid #000; } 
-            #map { height: 100%; width: 100%; } 
-        }
+        @media print { .leaflet-control-container { display: none !important; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .legend { position: absolute; bottom: 20px; right: 20px; box-shadow: none; border: 1px solid #000; } #map { height: 100%; width: 100%; } }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<!-- 校正面板 -->
-<div id="calibration-panel" style="display:none;">
-    <h4>🗺️ 地圖底圖校正器</h4>
-    <div class="cal-row"><label>上邊界(Y):</label><input type="number" id="in-top" step="50"></div>
-    <div class="cal-row"><label>下邊界(Y):</label><input type="number" id="in-bottom" step="50"></div>
-    <div class="cal-row"><label>左邊界(X):</label><input type="number" id="in-left" step="50"></div>
-    <div class="cal-row"><label>右邊界(X):</label><input type="number" id="in-right" step="50"></div>
-    <div style="margin-top:8px; color:#ccc;">
-        對齊後請記下數值<br>填回 mapConfig 並關閉校正模式
-    </div>
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+<!-- 1. 載入地圖設定 (圖片檔名、座標範圍) -->
+<script src="config.js"></script>
+<!-- 2. 載入村莊資料 (村莊列表、顏色、鐵路) -->
+<script src="data.js"></script>
+
 <script>
-    // ==========================================
-    // 🔧 設定區 (已填入您提供的新數值)
-    // ==========================================
-    const mapConfig = {
-        // 1. 先開啟校正模式，確認對齊
-        calibrationMode: true, 
+    // 檢查檔案是否載入成功
+    if (typeof mapSettings === 'undefined') { alert("錯誤：config.js 未載入！"); }
+    if (typeof rawData === 'undefined') { alert("錯誤：data.js 未載入！"); }
 
-        // 2. 圖片檔名
-        imageUrl: 'map_bg.png',
-
-        // 3. 初始參數 (根據您提供的 X: -2560~9359, Y: -9728~1023)
-        // 這些數值是「遊戲座標」，程式會自動處理 Y 軸翻轉
-        topY: -9728,    // 圖片頂部 (Game Y)
-        bottomY: 1023,  // 圖片底部 (Game Y)
-        leftX: -2560,   // 圖片左側 (Game X)
-        rightX: 9359    // 圖片右側 (Game X)
-    };
-    // ==========================================
-
-    // ==========================================
-    // 📁 資料區
-    // ==========================================
-    const rawData = [
-        { prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 1, name: "東田", x: -751, y: -172 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 2, name: "赤樹", x: -131, y: -254 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 3, name: "中島", x: -1307, y: -343 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "澳口", id: 4, name: "中澳", x: -1531, y: -1010 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 5, name: "大田", x: 148, y: 175 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 6, name: "東湖", x: 52, y: 30 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 7, name: "東仁", x: -16, y: 73 },
-        { prov: "中京", pref: "大成", county: "雪川", dist: "", id: 8, name: "灣內", x: 6259, y: -9041 },
-        { prov: "中京", pref: "大成", county: "雪川", dist: "", id: 9, name: "埔里", x: 6702, y: -8123 },
-        { prov: "中京", pref: "大成", county: "外埔", dist: "大寮", id: 10, name: "劉厝", x: 2792, y: -3493 },
-        { prov: "中京", pref: "大成", county: "雪川", dist: "", id: 11, name: "島田", x: 8873, y: -9132 },
-        { prov: "中京", pref: "大成", county: "雪川", dist: "", id: 12, name: "雪田", x: 7533, y: -8616 },
-        { prov: "中京", pref: "大成", county: "雪川", dist: "", id: 13, name: "白溪", x: 6337, y: -8051 },
-        { prov: "中京", pref: "大成", county: "雪川", dist: "", id: 14, name: "南圍", x: 5220, y: -7424 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "大豐", id: 15, name: "中港", x: 3275, y: -6124 },
-        { prov: "中京", pref: "大成", county: "外埔", dist: "大寮", id: 16, name: "頂庄", x: 2123, y: -3258 },
-        { prov: "中京", pref: "大成", county: "外埔", dist: "大寮", id: 17, name: "崎底寮", x: 1068, y: -2705 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "海陽", id: 18, name: "中沙", x: 206, y: -1529 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "海陽", id: 19, name: "船頭", x: 523, y: -1691 },
-        { prov: "中京", pref: "大成", county: "港南", dist: "赤島", id: 20, name: "赤港", x: 5173, y: -3848 },
-        { prov: "中京", pref: "大成", county: "港南", dist: "赤島", id: 21, name: "海頭", x: 5012, y: -3851 },
-        { prov: "中京", pref: "大成", county: "港南", dist: "赤島", id: 22, name: "山崁", x: 5198, y: -3754 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "海嶼", id: 23, name: "淡海", x: 2021, y: -5127 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "海嶼", id: 24, name: "淡水", x: 1763, y: -5207 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "海嶼", id: 25, name: "高崎", x: 1096, y: -4776 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "海嶼", id: 26, name: "三洲", x: 2104, y: -5737 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "海陽", id: 27, name: "山埔", x: -82, y: -1005 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "澳口", id: 28, name: "海原", x: -799, y: -1174 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "海陽", id: 29, name: "例村", x: 135, y: -1068 },
-        { prov: "中京", pref: "大成", county: "外埔", dist: "大寮", id: 30, name: "四合院", x: 2263, y: -3315 },
-        { prov: "中京", pref: "大成", county: "雪川", dist: "", id: 31, name: "雪頭", x: 5984, y: -7511 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "大豐", id: 32, name: "三明", x: 2114, y: -6354 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "大豐", id: 33, name: "永豐", x: 3162, y: -6582 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "大豐", id: 34, name: "城南", x: 3165, y: -6379 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "大豐", id: 35, name: "新山", x: 3108, y: -6262 },
-        { prov: "中京", pref: "大成", county: "雪川", dist: "", id: 36, name: "雪原", x: 7002, y: -7587 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "大豐", id: 37, name: "新社", x: 4929, y: -6485 },
-        { prov: "中京", pref: "大成", county: "南安", dist: "東樹", id: 38, name: "大樹", x: 13, y: 589 },
-        { prov: "中京", pref: "大成", county: "舟山", dist: "大豐", id: 39, name: "郭溪", x: 5298, y: -6043 },
-        { prov: "中京", pref: "大成", county: "雪川", dist: "", id: 40, name: "大坑", x: 5412, y: -6864 },
-        // --- 新增村莊 (未定) ---
-        { prov: "未定", pref: "未定", county: "未定", dist: "", id: 901, name: "新村莊01", x: -1905, y: -1011 },
-        { prov: "未定", pref: "未定", county: "未定", dist: "", id: 902, name: "新村莊02", x: -1872, y: -1779 },
-        { prov: "未定", pref: "未定", county: "未定", dist: "", id: 903, name: "新村莊03", x: 3162, y: -2254 },
-        { prov: "未定", pref: "未定", county: "未定", dist: "", id: 904, name: "新村莊04", x: 1318, y: 318 }
-    ];
-
-    // 如果您有 railwayRoutesData，請保留；若無則用空陣列
-    if (typeof railwayRoutesData === 'undefined') {
-        var railwayRoutesData = { completed: [], construction: [] };
-    }
-    // ==========================================
-
-    const coordMap = {};
-    rawData.forEach(v => {
-        coordMap[v.name] = [-v.y, v.x]; 
-    });
-
+    // 建立地圖
     const map = L.map('map', {
         crs: L.CRS.Simple, minZoom: -6, maxZoom: 3, zoomSnap: 0.5, attributionControl: false
     });
 
-    // 顏色邏輯 (未定 = 灰色)
-    const countyHues = { "南安": 0, "雪川": 210, "外埔": 120, "舟山": 270, "港南": 35, "大湖": 180, "未定": -1 };
-    
+    // 建立座標對照表 (給鐵路用)
+    const coordMap = {};
+    rawData.forEach(v => { coordMap[v.name] = [-v.y, v.x]; });
+
+    // --- 行政區顏色與階層邏輯 (資料來源來自 data.js) ---
     const hierarchy = {};
     rawData.forEach(v => {
         if (!hierarchy[v.county]) hierarchy[v.county] = new Set();
         hierarchy[v.county].add(v.dist || "直轄");
     });
+    
     const districtColors = {}; 
     Object.keys(hierarchy).forEach(county => {
         const districts = Array.from(hierarchy[county]).sort();
+        // 讀取 data.js 中的 countyHues
         const baseHue = countyHues[county] !== undefined ? countyHues[county] : 0;
         
         districts.forEach((dist, index) => {
             if (county === "未定") {
-                districtColors[`${county}-${dist}`] = "#7f8c8d"; // 灰色
+                districtColors[`${county}-${dist}`] = "#7f8c8d";
             } else {
                 const count = districts.length;
                 let lightness = 50;
@@ -187,7 +79,7 @@
     const railwayLayer = L.layerGroup(); 
     const railwayConstructionLayer = L.layerGroup(); 
 
-    // 邊界計算
+    // 計算邊界 (用於自動縮放和格線)
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     rawData.forEach(v => {
         if (v.x < minX) minX = v.x; if (v.x > maxX) maxX = v.x;
@@ -196,8 +88,9 @@
     const padding = 2000;
     const gridBounds = { minX: minX - padding, maxX: maxX + padding, minY: minY - padding, maxY: maxY + padding };
 
-    // 鐵路
+    // 繪製鐵路
     function drawRailways(routes, style, layer) {
+        if(!routes) return;
         routes.forEach(routeStr => {
             const stations = routeStr.split("-");
             const latLngs = [];
@@ -207,10 +100,11 @@
             if (latLngs.length > 1) L.polyline(latLngs, style).addTo(layer);
         });
     }
+    // 讀取 data.js 中的 railwayRoutesData
     drawRailways(railwayRoutesData.completed, { color: '#333', weight: 3, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }, railwayLayer);
     drawRailways(railwayRoutesData.construction, { color: '#e67e22', weight: 3, opacity: 0.8, dashArray: '5, 10', lineCap: 'round' }, railwayConstructionLayer);
 
-    // 村莊點位
+    // 繪製村莊
     const bounds = [];
     const labelObjects = []; 
 
@@ -321,46 +215,16 @@
     drawGrid();
     map.on('zoomend', drawGrid);
 
-    // ==========================================
-    // 🖼️ 地形底圖邏輯 (含校正功能)
-    // ==========================================
-    let imgTopY = mapConfig.topY;
-    let imgBottomY = mapConfig.bottomY;
-    let imgLeftX = mapConfig.leftX;
-    let imgRightX = mapConfig.rightX;
-
-    let mapImageLayer = L.imageOverlay(mapConfig.imageUrl, [[-imgTopY, imgLeftX], [-imgBottomY, imgRightX]], {
-        opacity: 0.9, 
-        zIndex: -1 
-    });
+    // 載入底圖 (讀取 config.js 中的 mapSettings)
+    const mapImageLayer = L.imageOverlay(
+        mapSettings.imageName, 
+        [
+            [-mapSettings.minY, mapSettings.minX], 
+            [-mapSettings.maxY, mapSettings.maxX]
+        ], 
+        { opacity: 0.9, zIndex: -1 }
+    );
     mapImageLayer.addTo(map);
-
-    if (mapConfig.calibrationMode) {
-        const panel = document.getElementById('calibration-panel');
-        panel.style.display = 'block';
-
-        const inTop = document.getElementById('in-top');
-        const inBottom = document.getElementById('in-bottom');
-        const inLeft = document.getElementById('in-left');
-        const inRight = document.getElementById('in-right');
-
-        inTop.value = imgTopY;
-        inBottom.value = imgBottomY;
-        inLeft.value = imgLeftX;
-        inRight.value = imgRightX;
-
-        function updateImageBounds() {
-            imgTopY = parseFloat(inTop.value);
-            imgBottomY = parseFloat(inBottom.value);
-            imgLeftX = parseFloat(inLeft.value);
-            imgRightX = parseFloat(inRight.value);
-            mapImageLayer.setBounds([[-imgTopY, imgLeftX], [-imgBottomY, imgRightX]]);
-        }
-        inTop.addEventListener('input', updateImageBounds);
-        inBottom.addEventListener('input', updateImageBounds);
-        inLeft.addEventListener('input', updateImageBounds);
-        inRight.addEventListener('input', updateImageBounds);
-    }
 
     // 介面控制
     const baseMaps = { "地形圖": mapImageLayer, "空白背景": L.layerGroup() };
@@ -387,7 +251,6 @@
             const districts = Array.from(hierarchy[county]).sort();
             districts.forEach(dist => {
                 const key = `${county}-${dist}`;
-                
                 let displayName;
                 if (county === "未定") {
                     displayName = "未定行政區";
@@ -396,7 +259,6 @@
                 } else {
                     displayName = `${county}縣 ${dist}郡`;
                 }
-
                 div.innerHTML += `<div class="legend-item"><i class="legend-color" style="background:${districtColors[key]}"></i><span>${displayName}</span></div>`;
             });
         });
