@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地圖校正工具 v3.0 (對齊版)</title>
+    <title>地圖校正工具 v4.0 (彈性錨點版)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background: #222; }
@@ -13,27 +13,38 @@
         #panel {
             position: fixed; top: 10px; right: 10px; z-index: 9999;
             background: rgba(0, 0, 0, 0.9); color: #fff; padding: 15px;
-            border-radius: 8px; width: 320px; font-size: 14px;
+            border-radius: 8px; width: 340px; font-size: 14px;
             border: 1px solid #666; box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column; gap: 12px;
         }
-        h2 { margin: 0 0 10px 0; color: #ffcc00; font-size: 18px; border-bottom: 1px solid #555; padding-bottom: 5px; }
+        h2 { margin: 0; font-size: 18px; color: #ffcc00; border-bottom: 1px solid #555; padding-bottom: 8px; text-align: center; }
         
-        .control-group { margin-bottom: 15px; background: #222; padding: 10px; border-radius: 4px; border: 1px solid #444; }
-        .group-title { font-weight: bold; color: #4db8ff; margin-bottom: 5px; display: block; }
-        .desc { font-size: 12px; color: #aaa; margin-bottom: 5px; }
+        .control-group { background: #2a2a2a; padding: 10px; border-radius: 4px; border: 1px solid #444; }
+        .group-title { font-weight: bold; color: #4db8ff; margin-bottom: 8px; display: block; font-size: 13px; }
         
-        .key-hint { display: inline-block; padding: 2px 6px; background: #555; border-radius: 3px; font-family: monospace; color: #fff; border: 1px solid #777; font-size: 12px; }
+        .radio-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 5px; }
+        .radio-label { 
+            display: flex; align-items: center; justify-content: center;
+            background: #444; padding: 6px; border-radius: 4px; cursor: pointer; border: 1px solid #555; font-size: 12px;
+        }
+        .radio-label:hover { background: #555; }
+        .radio-label input { margin-right: 5px; }
+        .radio-label.active { background: #007bff; border-color: #0056b3; color: white; }
+
+        .desc { font-size: 12px; color: #ccc; line-height: 1.4; margin-top: 5px; }
+        .key-hint { display: inline-block; padding: 1px 5px; background: #555; border-radius: 3px; font-family: monospace; color: #fff; border: 1px solid #777; font-size: 11px; }
 
         .btn-copy {
             width: 100%; padding: 12px; background-color: #28a745; color: white; border: none; 
-            border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px;
+            border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 5px;
         }
         .btn-copy:hover { background-color: #218838; }
-
-        .status-row { display: flex; justify-content: space-between; font-family: monospace; font-size: 12px; color: #888; margin-top: 5px; }
         
         /* 讓圓點更明顯 */
-        .leaflet-marker-icon { opacity: 0.9 !important; }
+        .leaflet-marker-icon { opacity: 0.9 !important; border: 1px solid white; border-radius: 50%; }
+        
+        /* 數值顯示 */
+        .debug-info { font-family: monospace; font-size: 10px; color: #666; text-align: center; margin-top: 5px;}
     </style>
 </head>
 <body>
@@ -41,30 +52,57 @@
 <div id="map"></div>
 
 <div id="panel">
-    <h2>🛠️ 地圖對齊工具 v3.0</h2>
+    <h2>🛠️ 地圖校正 v4.0 (彈性錨點)</h2>
 
+    <!-- 步驟 1: 選擇錨點 -->
     <div class="control-group">
-        <span class="group-title">步驟 1: 對齊左上角 (平移)</span>
-        <div class="desc">找一個靠<b>左上角</b>的村莊 (如: 東田)</div>
-        <div class="desc">使用 <span class="key-hint">W</span> <span class="key-hint">A</span> <span class="key-hint">S</span> <span class="key-hint">D</span> 移動整張底圖</div>
-        <div class="desc" style="color:#ff6b6b">目標：讓該村莊與圓點重合</div>
+        <span class="group-title">步驟 1: 您想鎖定哪裡的村莊?</span>
+        <div class="radio-group">
+            <label class="radio-label" onclick="setAnchor('tl')">
+                <input type="radio" name="anchor" value="tl"> ↖️ 左上
+            </label>
+            <label class="radio-label active" onclick="setAnchor('tr')">
+                <input type="radio" name="anchor" value="tr" checked> ↗️ 右上
+            </label>
+            <label class="radio-label" onclick="setAnchor('bl')">
+                <input type="radio" name="anchor" value="bl"> ↙️ 左下
+            </label>
+            <label class="radio-label" onclick="setAnchor('br')">
+                <input type="radio" name="anchor" value="br"> ↘️ 右下
+            </label>
+        </div>
+        <div class="desc" id="anchor-desc">目前鎖定：<b>↗️ 右上角</b><br>拉伸時，右上角不會動，只動左下。</div>
     </div>
 
+    <!-- 步驟 2: 平移 -->
     <div class="control-group">
-        <span class="group-title">步驟 2: 對齊右下角 (拉伸)</span>
-        <div class="desc">找一個靠<b>右下角</b>的村莊 (如: 灣內)</div>
-        <div class="desc">使用 <span class="key-hint">⬆️</span> <span class="key-hint">⬇️</span> <span class="key-hint">⬅️</span> <span class="key-hint">➡️</span> 拉伸底圖邊緣</div>
-        <div class="desc" style="color:#ff6b6b">目標：左上角不動，讓右下角重合</div>
+        <span class="group-title">步驟 2: 平移對齊 (WASD)</span>
+        <div class="desc">
+            使用 <span class="key-hint">W</span> <span class="key-hint">A</span> <span class="key-hint">S</span> <span class="key-hint">D</span> 移動整張圖。<br>
+            <span style="color:#ff6b6b">目標：將您選定角落的村莊對齊圓點。</span>
+        </div>
     </div>
 
+    <!-- 步驟 3: 拉伸 -->
     <div class="control-group">
-        <span class="group-title">微調速度</span>
+        <span class="group-title">步驟 3: 拉伸對角 (方向鍵)</span>
+        <div class="desc">
+            使用 <span class="key-hint">⬆️</span> <span class="key-hint">⬇️</span> <span class="key-hint">⬅️</span> <span class="key-hint">➡️</span> 拉伸。<br>
+            <span style="color:#4db8ff">目標：將<b>對角線</b>的村莊也對齊。</span>
+        </div>
+    </div>
+
+    <!-- 速度控制 -->
+    <div class="control-group" style="padding: 5px 10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:12px;">微調速度</span>
+            <span style="font-size:12px; font-family:monospace;" id="speedVal">20 px</span>
+        </div>
         <input type="range" id="speedRange" min="1" max="100" value="20" style="width:100%">
-        <div style="text-align:right; font-size:12px;" id="speedVal">20 px</div>
-        <div class="desc">按住 <span class="key-hint">Shift</span> 可加速 5 倍</div>
     </div>
 
     <button class="btn-copy" onclick="copyConfig()">✅ 完成！複製代碼</button>
+    <div class="debug-info" id="debug-coords"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -73,7 +111,6 @@
 
 <script>
     if (typeof mapSettings === 'undefined') {
-        // 防呆預設值 (如果讀不到 config.js)
         var mapSettings = { imageName: "map_bg.png", minX: -2560, maxX: 9359, minY: -9728, maxY: 1023 };
     }
 
@@ -83,103 +120,129 @@
     });
     L.control.zoom({ position: 'topleft' }).addTo(map);
 
-    // 繪製村莊參考點 (紅點)
+    // 繪製村莊參考點
     const bounds = [];
     if (typeof rawData !== 'undefined') {
         rawData.forEach(v => {
             const latLng = [-v.y, v.x];
             bounds.push(latLng);
             L.circleMarker(latLng, {
-                radius: 3, color: 'red', fillColor: '#ff0000', fillOpacity: 1, weight: 1
-            }).bindTooltip(v.name, {permanent: true, direction: 'right', offset:[5,0], opacity:0.8}).addTo(map);
+                radius: 4, color: '#fff', weight:1, fillColor: '#ff0000', fillOpacity: 0.8
+            }).bindTooltip(v.name, {permanent: true, direction: 'auto', opacity:0.7}).addTo(map);
         });
         if (bounds.length > 0) map.fitBounds(bounds, { padding: [100, 100] });
     }
 
-    // 當前設定狀態
+    // 當前數值
     let current = {
-        minX: mapSettings.minX,
-        maxX: mapSettings.maxX,
-        minY: mapSettings.minY,
-        maxY: mapSettings.maxY
+        minX: mapSettings.minX, maxX: mapSettings.maxX,
+        minY: mapSettings.minY, maxY: mapSettings.maxY
     };
+
+    // 當前鎖定的錨點 (預設右上 tr)
+    let currentAnchor = 'tr'; 
 
     // 建立底圖
     let mapImageLayer = L.imageOverlay(
         mapSettings.imageName, 
         [[-current.minY, current.minX], [-current.maxY, current.maxX]], 
-        { opacity: 0.6, zIndex: -1 } // 半透明
+        { opacity: 0.6, zIndex: -1 }
     );
     mapImageLayer.addTo(map);
 
-    // 更新畫面
     function render() {
-        // 更新圖片位置
         mapImageLayer.setBounds([[-current.minY, current.minX], [-current.maxY, current.maxX]]);
+        document.getElementById('debug-coords').innerText = `X: ${Math.round(current.minX)} ~ ${Math.round(current.maxX)} | Y: ${Math.round(current.minY)} ~ ${Math.round(current.maxY)}`;
     }
 
-    // 鍵盤控制邏輯
+    // 切換錨點 UI 邏輯
+    window.setAnchor = function(val) {
+        currentAnchor = val;
+        // 更新 UI 樣式
+        document.querySelectorAll('.radio-label').forEach(el => el.classList.remove('active'));
+        document.querySelector(`input[value="${val}"]`).parentElement.classList.add('active');
+        
+        // 更新說明文字
+        const descMap = {
+            'tl': '目前鎖定：<b>↖️ 左上角</b><br>方向鍵將拉伸「右側」與「下方」。',
+            'tr': '目前鎖定：<b>↗️ 右上角</b><br>方向鍵將拉伸「左側」與「下方」。',
+            'bl': '目前鎖定：<b>↙️ 左下角</b><br>方向鍵將拉伸「右側」與「上方」。',
+            'br': '目前鎖定：<b>↘️ 右下角</b><br>方向鍵將拉伸「左側」與「上方」。'
+        };
+        document.getElementById('anchor-desc').innerHTML = descMap[val];
+    }
+    
+    // 初始化 UI
+    setAnchor('tr');
+
+    // 鍵盤控制核心邏輯
     document.addEventListener('keydown', (e) => {
         let step = parseInt(document.getElementById('speedRange').value);
-        if (e.shiftKey) step *= 5; // 按 Shift 加速
+        if (e.shiftKey) step *= 5; 
 
-        // 1. WASD 平移 (Move Whole Map)
-        // 同時改變 Min 和 Max，保持寬高不變，只改變位置
-        if (e.code === 'KeyW') { // 上移 (Y 變小 -> Lat 變大) -> 遊戲座標 Y 減小 (因為 Lat = -Y)
-            current.minY -= step; current.maxY -= step; render();
-        }
-        if (e.code === 'KeyS') { // 下移
-            current.minY += step; current.maxY += step; render();
-        }
-        if (e.code === 'KeyA') { // 左移
-            current.minX -= step; current.maxX -= step; render();
-        }
-        if (e.code === 'KeyD') { // 右移
-            current.minX += step; current.maxX += step; render();
+        // 1. WASD 平移 (所有邊界同時移動)
+        if (['KeyW','KeyS','KeyA','KeyD'].includes(e.code)) {
+            if (e.code === 'KeyW') { current.minY -= step; current.maxY -= step; } // 上
+            if (e.code === 'KeyS') { current.minY += step; current.maxY += step; } // 下
+            if (e.code === 'KeyA') { current.minX -= step; current.maxX -= step; } // 左
+            if (e.code === 'KeyD') { current.minX += step; current.maxX += step; } // 右
+            render();
+            return;
         }
 
-        // 2. 方向鍵 拉伸 (Stretch)
-        // 固定左上角 (MinX, MinY 不動)，只改變右下角 (MaxX, MaxY)
-        if (e.code === 'ArrowUp') { // 收縮高度
-            current.maxY -= step; render();
-        }
-        if (e.code === 'ArrowDown') { // 拉長高度
-            current.maxY += step; render();
-        }
-        if (e.code === 'ArrowLeft') { // 收縮寬度
-            current.maxX -= step; render();
-        }
-        if (e.code === 'ArrowRight') { // 拉長寬度
-            current.maxX += step; render();
+        // 2. 方向鍵 拉伸 (根據錨點決定動哪個邊)
+        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) {
+            e.preventDefault(); // 防止捲動網頁
+
+            // 垂直拉伸邏輯
+            if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+                const isExpand = (e.code === 'ArrowDown'); // 下鍵代表「變高/變長」
+                const delta = isExpand ? step : -step;
+
+                // 如果鎖定上方 (Top Locked)，動下方 (MaxY)
+                if (currentAnchor === 'tl' || currentAnchor === 'tr') {
+                    current.maxY += delta;
+                } 
+                // 如果鎖定下方 (Bottom Locked)，動上方 (MinY)
+                else {
+                    current.minY -= delta; // 往上長是減
+                }
+            }
+
+            // 水平拉伸邏輯
+            if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+                const isExpand = (e.code === 'ArrowRight'); // 右鍵代表「變寬/變長」
+                const delta = isExpand ? step : -step;
+
+                // 如果鎖定左方 (Left Locked)，動右方 (MaxX)
+                if (currentAnchor === 'tl' || currentAnchor === 'bl') {
+                    current.maxX += delta;
+                } 
+                // 如果鎖定右方 (Right Locked)，動左方 (MinX)
+                else {
+                    current.minX -= delta;
+                }
+            }
+            render();
         }
     });
 
-    // 速度滑桿顯示
-    document.getElementById('speedRange').addEventListener('input', function(e) {
+    document.getElementById('speedRange').addEventListener('input', (e) => {
         document.getElementById('speedVal').innerText = e.target.value + " px";
     });
 
-    // 複製代碼
     window.copyConfig = function() {
         const code = `// ==========================================
-// 🌍 地圖設定檔 (校正完成)
+// 🌍 地圖設定檔 (v4 校正完成)
 // ==========================================
-
 const mapSettings = {
     imageName: "${mapSettings.imageName}",
-    
-    minX: ${current.minX},
-    maxX: ${current.maxX},
-    minY: ${current.minY},
-    maxY: ${current.maxY}
+    minX: ${Math.round(current.minX)},
+    maxX: ${Math.round(current.maxX)},
+    minY: ${Math.round(current.minY)},
+    maxY: ${Math.round(current.maxY)}
 };`;
-
-        navigator.clipboard.writeText(code).then(() => {
-            alert("✅ 代碼已複製！請覆蓋 config.js 的內容");
-        }).catch(() => {
-            console.log(code);
-            alert("複製失敗，請看 Console");
-        });
+        navigator.clipboard.writeText(code).then(() => alert("✅ 代碼已複製！")).catch(() => console.log(code));
     }
 </script>
 
