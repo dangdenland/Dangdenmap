@@ -197,67 +197,90 @@
         });
     }
     map.whenReady(() => setTimeout(autoLayoutLabels, 300));
-
-    // 格線
+// ==========================================
+    // 🕸️ 格線系統 (預設顯示)
+    // ==========================================
     function drawGrid() {
         gridLayer.clearLayers();
         const zoom = map.getZoom();
+        
+        // 根據縮放層級決定格線間距
         let step = zoom >= 1 ? 100 : (zoom >= -1 ? 500 : (zoom >= -3 ? 1000 : (zoom >= -5 ? 2000 : 5000)));
+
+        // 計算繪製範圍
         const startX = Math.floor(gridBounds.minX / step) * step;
         const endX = Math.ceil(gridBounds.maxX / step) * step;
         const startY = Math.floor(gridBounds.minY / step) * step;
         const endY = Math.ceil(gridBounds.maxY / step) * step;
+
         const style = { color: '#ccc', weight: 1, dashArray: '4, 4' };
 
+        // 畫 X 軸 (垂直線)
         for (let x = startX; x <= endX; x += step) {
             gridLayer.addLayer(L.polyline([[-startY, x], [-endY, x]], style));
-            if (x >= gridBounds.minX && x <= gridBounds.maxX) gridLayer.addLayer(L.marker([-startY, x], { icon: L.divIcon({className: 'grid-label', html: x, iconAnchor: [0, -5], iconSize:[40,10]}) }));
+            // 座標標籤
+            if (x >= gridBounds.minX && x <= gridBounds.maxX) {
+                gridLayer.addLayer(L.marker([-startY, x], { 
+                    icon: L.divIcon({className: 'grid-label', html: x, iconAnchor: [0, -5], iconSize:[40,10]}), 
+                    interactive: false 
+                }));
+            }
         }
+        // 畫 Y 軸 (水平線)
         for (let y = startY; y <= endY; y += step) {
-            const ly = -y;
+            const ly = -y; // Leaflet Y 軸反轉
             gridLayer.addLayer(L.polyline([[ly, startX], [ly, endX]], style));
-            if (y >= gridBounds.minY && y <= gridBounds.maxY) gridLayer.addLayer(L.marker([ly, startX], { icon: L.divIcon({className: 'grid-label', html: y, iconAnchor: [30, 0], iconSize:[40,10]}) }));
+            // 座標標籤
+            if (y >= gridBounds.minY && y <= gridBounds.maxY) {
+                gridLayer.addLayer(L.marker([ly, startX], { 
+                    icon: L.divIcon({className: 'grid-label', html: y, iconAnchor: [30, 0], iconSize:[40,10]}), 
+                    interactive: false 
+                }));
+            }
         }
     }
     drawGrid();
     map.on('zoomend', drawGrid);
+    
+    // ★ 設定 1：預設開啟格線
+    gridLayer.addTo(map); 
 
-// ==========================================
-    // 🖼️ 載入地形底圖 (使用 mapSettings)
+
+    // ==========================================
+    // 🖼️ 地形底圖 (圖層設定)
     // ==========================================
     const mapImageLayer = L.imageOverlay(
-        mapSettings.imageName, 
+        mapSettings.imageName, // 讀取 config.js 的檔名
         [
             [-mapSettings.minY, mapSettings.minX], 
             [-mapSettings.maxY, mapSettings.maxX]
         ], 
         { opacity: 0.9, zIndex: -1 }
     );
-    // 注意：這裡不要寫 .addTo(map)，這樣預設就不會載入圖片
-
-    // 建立一個空白圖層
+    
+    // 空白背景層
     const blankLayer = L.layerGroup();
-    // 將空白圖層加入地圖 (這行決定了預設顯示空白)
+    
+    // ★ 設定 2：預設開啟空白背景 (不要開啟 mapImageLayer 以加快載入)
     blankLayer.addTo(map);
 
+
     // ==========================================
-    // 🎛️ 介面控制 (圖層選單)
+    // 🎛️ 介面控制 (右上角選單)
     // ==========================================
     
-    // Base Maps (單選：決定背景)
-    const baseMaps = { 
-        "空白背景": blankLayer,   // 預設選中這個
-        "地形圖": mapImageLayer 
+    // 1. 底圖切換 (單選：Radio Buttons)
+    const baseMaps = {
+        "空白背景": blankLayer,   // 因為上面 addTo(map) 了這個，所以選單預設會選它
+        "地形圖": mapImageLayer   // 點選這個時，Leaflet 會自動載入圖片
     };
 
-    // Overlay Maps (複選：決定上面蓋什麼)
-    // 想要預設顯示的，就要在上面先 .addTo(map) 過
-    // 這裡確認一下哪些有加
+    // 2. 功能圖層 (複選：Checkboxes)
+    // ★ 設定 3：這裡決定哪些圖層預設要打勾 (需配合上面 .addTo(map))
     villageLayer.addTo(map);     // 預設顯示點位
     labelLayer.addTo(map);       // 預設顯示名稱
     leaderLineLayer.addTo(map);  // 預設顯示引導線
-    // railwayLayer.addTo(map);  // 如果想預設顯示鐵路，把這行註解拿掉
-    // gridLayer.addTo(map);     // 如果想預設顯示格線，把這行註解拿掉
+    // railwayLayer.addTo(map);  // 若要預設顯示鐵路，請解除註解
 
     const overlayMaps = {
         "村莊點位": villageLayer,
@@ -270,9 +293,12 @@
 
     L.control.layers(baseMaps, overlayMaps, {collapsed: false}).addTo(map);
     
+    // 初始化視野
     if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
 
-    // 圖例
+    // ==========================================
+    // 📝 圖例 (Legend)
+    // ==========================================
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function (map) {
         const div = L.DomUtil.create('div', 'legend');
