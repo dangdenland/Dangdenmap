@@ -2,7 +2,7 @@
 // 🌍 地圖設定檔 (v5.4 絲滑校正)
 // ==========================================
 const mapSettings = {
-    imageName: "map_bg.png",
+    imageName: "map_bg.jpg",
     
     minX: -2131,
     maxX: 9360,
