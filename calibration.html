@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地圖校正工具 v4.0 (彈性錨點版)</title>
+    <title>地圖校正工具 v4.1 (除錯版)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background: #222; }
@@ -16,6 +16,7 @@
             border-radius: 8px; width: 340px; font-size: 14px;
             border: 1px solid #666; box-shadow: 0 0 20px rgba(0,0,0,0.8);
             display: flex; flex-direction: column; gap: 12px;
+            max-height: 90vh; overflow-y: auto;
         }
         h2 { margin: 0; font-size: 18px; color: #ffcc00; border-bottom: 1px solid #555; padding-bottom: 8px; text-align: center; }
         
@@ -42,9 +43,13 @@
         
         /* 讓圓點更明顯 */
         .leaflet-marker-icon { opacity: 0.9 !important; border: 1px solid white; border-radius: 50%; }
-        
-        /* 數值顯示 */
         .debug-info { font-family: monospace; font-size: 10px; color: #666; text-align: center; margin-top: 5px;}
+
+        /* 輸入框樣式 */
+        input[type="text"], input[type="number"] {
+            width: 100%; box-sizing: border-box; padding: 5px;
+            background: #444; color: #fff; border: 1px solid #666; margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -52,11 +57,19 @@
 <div id="map"></div>
 
 <div id="panel">
-    <h2>🛠️ 地圖校正 v4.0 (彈性錨點)</h2>
+    <h2>🛠️ 地圖校正 v4.1 (除錯版)</h2>
+
+    <!-- 除錯區：圖片設定 -->
+    <div class="control-group" style="border-color: #ff9800;">
+        <span class="group-title" style="color: #ff9800;">⚠️ 圖片出不來？檢查這裡</span>
+        <div class="desc">圖片檔名 (請確認副檔名 .png/.jpg)</div>
+        <input type="text" id="imgNameInput" value="map_bg.png" onchange="updateImageSrc()">
+        <div class="desc" id="img-status" style="color: #aaa;">正在載入...</div>
+    </div>
 
     <!-- 步驟 1: 選擇錨點 -->
     <div class="control-group">
-        <span class="group-title">步驟 1: 您想鎖定哪裡的村莊?</span>
+        <span class="group-title">步驟 1: 鎖定參考點</span>
         <div class="radio-group">
             <label class="radio-label" onclick="setAnchor('tl')">
                 <input type="radio" name="anchor" value="tl"> ↖️ 左上
@@ -76,29 +89,22 @@
 
     <!-- 步驟 2: 平移 -->
     <div class="control-group">
-        <span class="group-title">步驟 2: 平移對齊 (WASD)</span>
-        <div class="desc">
-            使用 <span class="key-hint">W</span> <span class="key-hint">A</span> <span class="key-hint">S</span> <span class="key-hint">D</span> 移動整張圖。<br>
-            <span style="color:#ff6b6b">目標：將您選定角落的村莊對齊圓點。</span>
-        </div>
+        <span class="group-title">步驟 2: 平移 (WASD)</span>
+        <div class="desc">用 <span class="key-hint">W</span><span class="key-hint">A</span><span class="key-hint">S</span><span class="key-hint">D</span> 移動整張圖。<br>將鎖定點的村莊對齊。</div>
     </div>
 
     <!-- 步驟 3: 拉伸 -->
     <div class="control-group">
-        <span class="group-title">步驟 3: 拉伸對角 (方向鍵)</span>
-        <div class="desc">
-            使用 <span class="key-hint">⬆️</span> <span class="key-hint">⬇️</span> <span class="key-hint">⬅️</span> <span class="key-hint">➡️</span> 拉伸。<br>
-            <span style="color:#4db8ff">目標：將<b>對角線</b>的村莊也對齊。</span>
-        </div>
+        <span class="group-title">步驟 3: 拉伸 (方向鍵)</span>
+        <div class="desc">用 <span class="key-hint">⬆️</span><span class="key-hint">⬇️</span><span class="key-hint">⬅️</span><span class="key-hint">➡️</span> 拉伸。<br>將對角線的村莊對齊。</div>
     </div>
 
-    <!-- 速度控制 -->
     <div class="control-group" style="padding: 5px 10px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <span style="font-size:12px;">微調速度</span>
             <span style="font-size:12px; font-family:monospace;" id="speedVal">20 px</span>
         </div>
-        <input type="range" id="speedRange" min="1" max="100" value="20" style="width:100%">
+        <input type="range" id="speedRange" min="1" max="200" value="20" style="width:100%">
     </div>
 
     <button class="btn-copy" onclick="copyConfig()">✅ 完成！複製代碼</button>
@@ -106,13 +112,24 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- 嘗試讀取設定檔，讀不到也不會崩潰 -->
 <script src="config.js"></script>
 <script src="data.js"></script>
 
 <script>
-    if (typeof mapSettings === 'undefined') {
-        var mapSettings = { imageName: "map_bg.png", minX: -2560, maxX: 9359, minY: -9728, maxY: 1023 };
+    // 預設值 (如果 config.js 沒讀到)
+    let defaultSettings = { imageName: "map_bg.png", minX: -2560, maxX: 9359, minY: -9728, maxY: 1023 };
+    
+    // 檢測 config.js 是否成功載入
+    if (typeof mapSettings !== 'undefined') {
+        defaultSettings = mapSettings;
+    } else {
+        console.warn("config.js 未載入，使用預設值");
     }
+
+    // 初始化輸入框的值
+    document.getElementById('imgNameInput').value = defaultSettings.imageName;
 
     // 初始化地圖
     const map = L.map('map', {
@@ -135,34 +152,50 @@
 
     // 當前數值
     let current = {
-        minX: mapSettings.minX, maxX: mapSettings.maxX,
-        minY: mapSettings.minY, maxY: mapSettings.maxY
+        minX: defaultSettings.minX, maxX: defaultSettings.maxX,
+        minY: defaultSettings.minY, maxY: defaultSettings.maxY
     };
 
-    // 當前鎖定的錨點 (預設右上 tr)
-    let currentAnchor = 'tr'; 
-
-    // 建立底圖
+    // 建立底圖 (初始為空，稍後載入)
     let mapImageLayer = L.imageOverlay(
-        mapSettings.imageName, 
+        defaultSettings.imageName, 
         [[-current.minY, current.minX], [-current.maxY, current.maxX]], 
         { opacity: 0.6, zIndex: -1 }
     );
     mapImageLayer.addTo(map);
 
+    // 圖片載入狀態監測
+    function checkImageStatus() {
+        const img = mapImageLayer.getElement();
+        const statusDiv = document.getElementById('img-status');
+        if (img) {
+            img.onload = () => { statusDiv.innerText = "✅ 圖片載入成功"; statusDiv.style.color = "#4db8ff"; };
+            img.onerror = () => { statusDiv.innerText = "❌ 載入失敗 (請檢查檔名/路徑)"; statusDiv.style.color = "#ff6b6b"; };
+        }
+    }
+    // 延遲檢測
+    setTimeout(checkImageStatus, 1000);
+
+    // 更新圖片網址 (當使用者在輸入框修改時)
+    window.updateImageSrc = function() {
+        const newName = document.getElementById('imgNameInput').value;
+        mapImageLayer.setUrl(newName);
+        setTimeout(checkImageStatus, 500);
+    }
+
+    // 渲染函數
     function render() {
         mapImageLayer.setBounds([[-current.minY, current.minX], [-current.maxY, current.maxX]]);
         document.getElementById('debug-coords').innerText = `X: ${Math.round(current.minX)} ~ ${Math.round(current.maxX)} | Y: ${Math.round(current.minY)} ~ ${Math.round(current.maxY)}`;
     }
 
-    // 切換錨點 UI 邏輯
+    // 錨點邏輯
+    let currentAnchor = 'tr'; 
     window.setAnchor = function(val) {
         currentAnchor = val;
-        // 更新 UI 樣式
         document.querySelectorAll('.radio-label').forEach(el => el.classList.remove('active'));
         document.querySelector(`input[value="${val}"]`).parentElement.classList.add('active');
         
-        // 更新說明文字
         const descMap = {
             'tl': '目前鎖定：<b>↖️ 左上角</b><br>方向鍵將拉伸「右側」與「下方」。',
             'tr': '目前鎖定：<b>↗️ 右上角</b><br>方向鍵將拉伸「左側」與「下方」。',
@@ -171,57 +204,37 @@
         };
         document.getElementById('anchor-desc').innerHTML = descMap[val];
     }
-    
-    // 初始化 UI
     setAnchor('tr');
 
-    // 鍵盤控制核心邏輯
+    // 鍵盤控制
     document.addEventListener('keydown', (e) => {
         let step = parseInt(document.getElementById('speedRange').value);
         if (e.shiftKey) step *= 5; 
 
-        // 1. WASD 平移 (所有邊界同時移動)
+        // WASD 平移
         if (['KeyW','KeyS','KeyA','KeyD'].includes(e.code)) {
-            if (e.code === 'KeyW') { current.minY -= step; current.maxY -= step; } // 上
-            if (e.code === 'KeyS') { current.minY += step; current.maxY += step; } // 下
-            if (e.code === 'KeyA') { current.minX -= step; current.maxX -= step; } // 左
-            if (e.code === 'KeyD') { current.minX += step; current.maxX += step; } // 右
+            if (e.code === 'KeyW') { current.minY -= step; current.maxY -= step; }
+            if (e.code === 'KeyS') { current.minY += step; current.maxY += step; }
+            if (e.code === 'KeyA') { current.minX -= step; current.maxX -= step; }
+            if (e.code === 'KeyD') { current.minX += step; current.maxX += step; }
             render();
             return;
         }
 
-        // 2. 方向鍵 拉伸 (根據錨點決定動哪個邊)
+        // 方向鍵 拉伸
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) {
-            e.preventDefault(); // 防止捲動網頁
-
-            // 垂直拉伸邏輯
+            e.preventDefault();
             if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
-                const isExpand = (e.code === 'ArrowDown'); // 下鍵代表「變高/變長」
+                const isExpand = (e.code === 'ArrowDown');
                 const delta = isExpand ? step : -step;
-
-                // 如果鎖定上方 (Top Locked)，動下方 (MaxY)
-                if (currentAnchor === 'tl' || currentAnchor === 'tr') {
-                    current.maxY += delta;
-                } 
-                // 如果鎖定下方 (Bottom Locked)，動上方 (MinY)
-                else {
-                    current.minY -= delta; // 往上長是減
-                }
+                if (currentAnchor === 'tl' || currentAnchor === 'tr') current.maxY += delta;
+                else current.minY -= delta;
             }
-
-            // 水平拉伸邏輯
             if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-                const isExpand = (e.code === 'ArrowRight'); // 右鍵代表「變寬/變長」
+                const isExpand = (e.code === 'ArrowRight');
                 const delta = isExpand ? step : -step;
-
-                // 如果鎖定左方 (Left Locked)，動右方 (MaxX)
-                if (currentAnchor === 'tl' || currentAnchor === 'bl') {
-                    current.maxX += delta;
-                } 
-                // 如果鎖定右方 (Right Locked)，動左方 (MinX)
-                else {
-                    current.minX -= delta;
-                }
+                if (currentAnchor === 'tl' || currentAnchor === 'bl') current.maxX += delta;
+                else current.minX -= delta;
             }
             render();
         }
@@ -232,11 +245,12 @@
     });
 
     window.copyConfig = function() {
+        const imgName = document.getElementById('imgNameInput').value;
         const code = `// ==========================================
-// 🌍 地圖設定檔 (v4 校正完成)
+// 🌍 地圖設定檔 (v4.1 校正完成)
 // ==========================================
 const mapSettings = {
-    imageName: "${mapSettings.imageName}",
+    imageName: "${imgName}",
     minX: ${Math.round(current.minX)},
     maxX: ${Math.round(current.maxX)},
     minY: ${Math.round(current.minY)},
