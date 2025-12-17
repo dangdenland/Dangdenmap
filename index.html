@@ -119,16 +119,23 @@
             linkHtml = `<div style="margin-top:12px; text-align:center;"><a href="${v.mapUrl}" target="_blank" style="display: inline-block; text-decoration: none; background-color: #007bff; color: white; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; transition: background 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);" onmouseover="this.style.backgroundColor='#0056b3'" onmouseout="this.style.backgroundColor='#007bff'">查看村莊軌道圖 ➜</a></div>`;
         }
         
+// 判斷是否有英文名稱與高度
+        const subName = v.en ? `<div style="font-size:12px; color:#888; margin-top:-2px;">${v.en}</div>` : "";
+        const heightInfo = (v.h !== undefined) ? ` | 高度: ${v.h}m` : "";
+
         const locationText = (v.county === "未定") 
             ? `<span style="color:#999; font-style:italic;">(行政區劃未定)</span>`
             : `${v.prov}省 ${v.pref}府<br>${v.county}縣 ${v.dist ? v.dist + '郡' : '(直轄)'}`;
 
         const popupContent = `
             <div style="text-align:center; min-width: 160px;">
-                <strong style="font-size:16px; display:block; margin-bottom:5px;">${v.name}</strong>
+                <strong style="font-size:16px; display:block; margin-bottom:2px;">${v.name}</strong>
+                ${subName}
                 <hr style="margin:5px 0; border:0; border-top:1px solid #ccc">
                 <div style="color:#333; margin: 6px 0; line-height:1.5;">${locationText}</div>
-                <div style="font-size:12px; color:#666;">座標: (${v.x}, ${v.y})</div>
+                <div style="font-size:12px; color:#666;">
+                    座標: (${v.x}, ${v.y})${heightInfo}
+                </div>
                 ${linkHtml}
             </div>`;
         
