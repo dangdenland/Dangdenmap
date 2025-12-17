@@ -3,261 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地圖校正工具 v4.1 (除錯版)</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>地圖校正工具 v5.0 (兩點逆推法)</title>
     <style>
-        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background: #222; }
-        #map { height: 100vh; width: 100vw; background-color: #333; }
-
-        /* 面板樣式 */
-        #panel {
-            position: fixed; top: 10px; right: 10px; z-index: 9999;
-            background: rgba(0, 0, 0, 0.9); color: #fff; padding: 15px;
-            border-radius: 8px; width: 340px; font-size: 14px;
-            border: 1px solid #666; box-shadow: 0 0 20px rgba(0,0,0,0.8);
-            display: flex; flex-direction: column; gap: 12px;
-            max-height: 90vh; overflow-y: auto;
-        }
-        h2 { margin: 0; font-size: 18px; color: #ffcc00; border-bottom: 1px solid #555; padding-bottom: 8px; text-align: center; }
+        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background: #222; color: #fff; overflow: hidden; }
         
-        .control-group { background: #2a2a2a; padding: 10px; border-radius: 4px; border: 1px solid #444; }
-        .group-title { font-weight: bold; color: #4db8ff; margin-bottom: 8px; display: block; font-size: 13px; }
+        /* 左右佈局 */
+        #container { display: flex; height: 100vh; }
         
-        .radio-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 5px; }
-        .radio-label { 
-            display: flex; align-items: center; justify-content: center;
-            background: #444; padding: 6px; border-radius: 4px; cursor: pointer; border: 1px solid #555; font-size: 12px;
+        /* 左側地圖區 */
+        #map-area { 
+            flex: 1; position: relative; overflow: auto; background: #333; cursor: crosshair;
+            display: flex; justify-content: center; align-items: center;
         }
-        .radio-label:hover { background: #555; }
-        .radio-label input { margin-right: 5px; }
-        .radio-label.active { background: #007bff; border-color: #0056b3; color: white; }
+        #target-image { box-shadow: 0 0 20px rgba(0,0,0,0.5); max-width: none; } /* 圖片原始大小顯示 */
 
-        .desc { font-size: 12px; color: #ccc; line-height: 1.4; margin-top: 5px; }
-        .key-hint { display: inline-block; padding: 1px 5px; background: #555; border-radius: 3px; font-family: monospace; color: #fff; border: 1px solid #777; font-size: 11px; }
+        /* 右側控制區 */
+        #sidebar { width: 320px; background: #1a1a1a; border-left: 1px solid #444; padding: 20px; display: flex; flex-direction: column; gap: 15px; box-shadow: -5px 0 15px rgba(0,0,0,0.3); z-index: 10; }
+        
+        h2 { margin: 0 0 10px 0; color: #ffcc00; border-bottom: 1px solid #555; padding-bottom: 10px; font-size: 18px; }
+        
+        .step-box { background: #2a2a2a; padding: 15px; border-radius: 6px; border: 1px solid #444; transition: all 0.3s; }
+        .step-box.active { border-color: #007bff; box-shadow: 0 0 10px rgba(0,123,255,0.2); }
+        .step-title { font-weight: bold; color: #4db8ff; margin-bottom: 5px; display: block; font-size: 14px; }
+        .step-desc { font-size: 12px; color: #ccc; line-height: 1.4; }
+        .status { margin-top: 8px; font-size: 12px; font-family: monospace; color: #aaa; }
+        .status.done { color: #28a745; font-weight: bold; }
 
-        .btn-copy {
+        input[type="text"] { width: 100%; padding: 8px; background: #333; border: 1px solid #555; color: white; margin-top: 5px; box-sizing: border-box; }
+        
+        button {
             width: 100%; padding: 12px; background-color: #28a745; color: white; border: none; 
-            border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 5px;
+            border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: auto;
         }
-        .btn-copy:hover { background-color: #218838; }
-        
-        /* 讓圓點更明顯 */
-        .leaflet-marker-icon { opacity: 0.9 !important; border: 1px solid white; border-radius: 50%; }
-        .debug-info { font-family: monospace; font-size: 10px; color: #666; text-align: center; margin-top: 5px;}
+        button:hover { background-color: #218838; }
+        button:disabled { background-color: #555; cursor: not-allowed; }
 
-        /* 輸入框樣式 */
-        input[type="text"], input[type="number"] {
-            width: 100%; box-sizing: border-box; padding: 5px;
-            background: #444; color: #fff; border: 1px solid #666; margin-top: 5px;
+        /* 標記點樣式 */
+        .marker {
+            position: absolute; width: 10px; height: 10px; border-radius: 50%; 
+            transform: translate(-50%, -50%); pointer-events: none; z-index: 100;
+            box-shadow: 0 0 0 2px white;
         }
+        .marker-1 { background: #ff0000; }
+        .marker-2 { background: #007bff; }
+        
+        /* 縮放提示 */
+        #zoom-hint { position: fixed; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 4px; font-size: 12px; pointer-events: none; }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
-
-<div id="panel">
-    <h2>🛠️ 地圖校正 v4.1 (除錯版)</h2>
-
-    <!-- 除錯區：圖片設定 -->
-    <div class="control-group" style="border-color: #ff9800;">
-        <span class="group-title" style="color: #ff9800;">⚠️ 圖片出不來？檢查這裡</span>
-        <div class="desc">圖片檔名 (請確認副檔名 .png/.jpg)</div>
-        <input type="text" id="imgNameInput" value="map_bg.png" onchange="updateImageSrc()">
-        <div class="desc" id="img-status" style="color: #aaa;">正在載入...</div>
+<div id="container">
+    <div id="map-area">
+        <!-- 圖片會動態載入這裡 -->
+        <div id="zoom-hint">💡 滾輪縮放圖片 | 按住左鍵拖曳</div>
     </div>
 
-    <!-- 步驟 1: 選擇錨點 -->
-    <div class="control-group">
-        <span class="group-title">步驟 1: 鎖定參考點</span>
-        <div class="radio-group">
-            <label class="radio-label" onclick="setAnchor('tl')">
-                <input type="radio" name="anchor" value="tl"> ↖️ 左上
-            </label>
-            <label class="radio-label active" onclick="setAnchor('tr')">
-                <input type="radio" name="anchor" value="tr" checked> ↗️ 右上
-            </label>
-            <label class="radio-label" onclick="setAnchor('bl')">
-                <input type="radio" name="anchor" value="bl"> ↙️ 左下
-            </label>
-            <label class="radio-label" onclick="setAnchor('br')">
-                <input type="radio" name="anchor" value="br"> ↘️ 右下
-            </label>
+    <div id="sidebar">
+        <h2>🛠️ 逆向校正 v5.0</h2>
+        
+        <div style="margin-bottom:10px;">
+            <label style="font-size:12px;">圖片檔名:</label>
+            <input type="text" id="imgName" value="map_bg.png" onchange="loadImage()">
         </div>
-        <div class="desc" id="anchor-desc">目前鎖定：<b>↗️ 右上角</b><br>拉伸時，右上角不會動，只動左下。</div>
-    </div>
 
-    <!-- 步驟 2: 平移 -->
-    <div class="control-group">
-        <span class="group-title">步驟 2: 平移 (WASD)</span>
-        <div class="desc">用 <span class="key-hint">W</span><span class="key-hint">A</span><span class="key-hint">S</span><span class="key-hint">D</span> 移動整張圖。<br>將鎖定點的村莊對齊。</div>
-    </div>
-
-    <!-- 步驟 3: 拉伸 -->
-    <div class="control-group">
-        <span class="group-title">步驟 3: 拉伸 (方向鍵)</span>
-        <div class="desc">用 <span class="key-hint">⬆️</span><span class="key-hint">⬇️</span><span class="key-hint">⬅️</span><span class="key-hint">➡️</span> 拉伸。<br>將對角線的村莊對齊。</div>
-    </div>
-
-    <div class="control-group" style="padding: 5px 10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:12px;">微調速度</span>
-            <span style="font-size:12px; font-family:monospace;" id="speedVal">20 px</span>
+        <!-- 步驟 1 -->
+        <div id="step1" class="step-box active">
+            <span class="step-title">步驟 1: 點擊「灣內」</span>
+            <div class="step-desc">請在左側圖片中找到 <b>灣內 (右上角)</b> 的位置，並點擊它的紅點中心。</div>
+            <div class="status" id="status1">未設定</div>
         </div>
-        <input type="range" id="speedRange" min="1" max="200" value="20" style="width:100%">
-    </div>
 
-    <button class="btn-copy" onclick="copyConfig()">✅ 完成！複製代碼</button>
-    <div class="debug-info" id="debug-coords"></div>
+        <!-- 步驟 2 -->
+        <div id="step2" class="step-box" style="opacity: 0.5; pointer-events: none;">
+            <span class="step-title">步驟 2: 點擊「中澳」</span>
+            <div class="step-desc">請找到 <b>中澳 (左下角)</b> 的位置，並點擊它的紅點中心。</div>
+            <div class="status" id="status2">未設定</div>
+        </div>
+
+        <div id="result-area" style="display:none; margin-top:20px;">
+            <div style="color:#4db8ff; font-size:13px; margin-bottom:5px;">計算完成！</div>
+            <button onclick="copyResult()">📋 複製 Config 代碼</button>
+        </div>
+    </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- 嘗試讀取設定檔，讀不到也不會崩潰 -->
-<script src="config.js"></script>
-<script src="data.js"></script>
-
 <script>
-    // 預設值 (如果 config.js 沒讀到)
-    let defaultSettings = { imageName: "map_bg.png", minX: -2560, maxX: 9359, minY: -9728, maxY: 1023 };
+    // ==========================================
+    // 📍 基準點設定 (使用您資料中最準確的兩點)
+    // ==========================================
+    // 點 A: 灣內 (右上區域)
+    const pointA = { name: "灣內", gameX: 6259, gameY: -9041 };
+    // 點 B: 中澳 (左下區域)
+    const pointB = { name: "中澳", gameX: -1531, gameY: -1010 };
+    // ==========================================
+
+    let currentStep = 1;
+    let coords1 = null; // 點1 的 圖片像素座標 (px, py)
+    let coords2 = null; // 點2 的 圖片像素座標
+    let imgWidth = 0;
+    let imgHeight = 0;
+
+    const imgElement = document.createElement('img');
+    imgElement.id = 'target-image';
+    const mapArea = document.getElementById('map-area');
     
-    // 檢測 config.js 是否成功載入
-    if (typeof mapSettings !== 'undefined') {
-        defaultSettings = mapSettings;
-    } else {
-        console.warn("config.js 未載入，使用預設值");
-    }
-
-    // 初始化輸入框的值
-    document.getElementById('imgNameInput').value = defaultSettings.imageName;
-
-    // 初始化地圖
-    const map = L.map('map', {
-        crs: L.CRS.Simple, minZoom: -6, maxZoom: 2, zoomSnap: 0.1, attributionControl: false, zoomControl: false
-    });
-    L.control.zoom({ position: 'topleft' }).addTo(map);
-
-    // 繪製村莊參考點
-    const bounds = [];
-    if (typeof rawData !== 'undefined') {
-        rawData.forEach(v => {
-            const latLng = [-v.y, v.x];
-            bounds.push(latLng);
-            L.circleMarker(latLng, {
-                radius: 4, color: '#fff', weight:1, fillColor: '#ff0000', fillOpacity: 0.8
-            }).bindTooltip(v.name, {permanent: true, direction: 'auto', opacity:0.7}).addTo(map);
-        });
-        if (bounds.length > 0) map.fitBounds(bounds, { padding: [100, 100] });
-    }
-
-    // 當前數值
-    let current = {
-        minX: defaultSettings.minX, maxX: defaultSettings.maxX,
-        minY: defaultSettings.minY, maxY: defaultSettings.maxY
-    };
-
-    // 建立底圖 (初始為空，稍後載入)
-    let mapImageLayer = L.imageOverlay(
-        defaultSettings.imageName, 
-        [[-current.minY, current.minX], [-current.maxY, current.maxX]], 
-        { opacity: 0.6, zIndex: -1 }
-    );
-    mapImageLayer.addTo(map);
-
-    // 圖片載入狀態監測
-    function checkImageStatus() {
-        const img = mapImageLayer.getElement();
-        const statusDiv = document.getElementById('img-status');
-        if (img) {
-            img.onload = () => { statusDiv.innerText = "✅ 圖片載入成功"; statusDiv.style.color = "#4db8ff"; };
-            img.onerror = () => { statusDiv.innerText = "❌ 載入失敗 (請檢查檔名/路徑)"; statusDiv.style.color = "#ff6b6b"; };
-        }
-    }
-    // 延遲檢測
-    setTimeout(checkImageStatus, 1000);
-
-    // 更新圖片網址 (當使用者在輸入框修改時)
-    window.updateImageSrc = function() {
-        const newName = document.getElementById('imgNameInput').value;
-        mapImageLayer.setUrl(newName);
-        setTimeout(checkImageStatus, 500);
-    }
-
-    // 渲染函數
-    function render() {
-        mapImageLayer.setBounds([[-current.minY, current.minX], [-current.maxY, current.maxX]]);
-        document.getElementById('debug-coords').innerText = `X: ${Math.round(current.minX)} ~ ${Math.round(current.maxX)} | Y: ${Math.round(current.minY)} ~ ${Math.round(current.maxY)}`;
-    }
-
-    // 錨點邏輯
-    let currentAnchor = 'tr'; 
-    window.setAnchor = function(val) {
-        currentAnchor = val;
-        document.querySelectorAll('.radio-label').forEach(el => el.classList.remove('active'));
-        document.querySelector(`input[value="${val}"]`).parentElement.classList.add('active');
-        
-        const descMap = {
-            'tl': '目前鎖定：<b>↖️ 左上角</b><br>方向鍵將拉伸「右側」與「下方」。',
-            'tr': '目前鎖定：<b>↗️ 右上角</b><br>方向鍵將拉伸「左側」與「下方」。',
-            'bl': '目前鎖定：<b>↙️ 左下角</b><br>方向鍵將拉伸「右側」與「上方」。',
-            'br': '目前鎖定：<b>↘️ 右下角</b><br>方向鍵將拉伸「左側」與「上方」。'
+    // 初始化載入
+    function loadImage() {
+        const name = document.getElementById('imgName').value;
+        imgElement.src = name;
+        imgElement.onload = function() {
+            imgWidth = this.naturalWidth;
+            imgHeight = this.naturalHeight;
+            // 重置
+            currentStep = 1;
+            coords1 = null; coords2 = null;
+            document.querySelectorAll('.marker').forEach(e => e.remove());
+            resetUI();
         };
-        document.getElementById('anchor-desc').innerHTML = descMap[val];
-    }
-    setAnchor('tr');
+        imgElement.onerror = function() {
+            alert("❌ 找不到圖片：" + name + "\n請確認檔案名稱與路徑。");
+        };
+        mapArea.innerHTML = '';
+        mapArea.appendChild(imgElement);
+        
+        // 簡單的縮放拖曳邏輯
+        let scale = 0.2; // 預設縮小一點看全貌
+        let originX = 0, originY = 0;
+        let isDragging = false, startX, startY, translateX = 0, translateY = 0;
 
-    // 鍵盤控制
-    document.addEventListener('keydown', (e) => {
-        let step = parseInt(document.getElementById('speedRange').value);
-        if (e.shiftKey) step *= 5; 
-
-        // WASD 平移
-        if (['KeyW','KeyS','KeyA','KeyD'].includes(e.code)) {
-            if (e.code === 'KeyW') { current.minY -= step; current.maxY -= step; }
-            if (e.code === 'KeyS') { current.minY += step; current.maxY += step; }
-            if (e.code === 'KeyA') { current.minX -= step; current.maxX -= step; }
-            if (e.code === 'KeyD') { current.minX += step; current.maxX += step; }
-            render();
-            return;
+        function updateTransform() {
+            imgElement.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+            imgElement.style.transformOrigin = "0 0";
         }
+        updateTransform();
 
-        // 方向鍵 拉伸
-        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) {
+        mapArea.onwheel = function(e) {
             e.preventDefault();
-            if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
-                const isExpand = (e.code === 'ArrowDown');
-                const delta = isExpand ? step : -step;
-                if (currentAnchor === 'tl' || currentAnchor === 'tr') current.maxY += delta;
-                else current.minY -= delta;
+            const xs = (e.clientX - mapArea.offsetLeft - translateX) / scale;
+            const ys = (e.clientY - mapArea.offsetTop - translateY) / scale;
+            const delta = -e.deltaY;
+            scale += (delta > 0 ? 0.05 : -0.05);
+            scale = Math.max(0.05, Math.min(5, scale));
+            translateX = e.clientX - mapArea.offsetLeft - xs * scale;
+            translateY = e.clientY - mapArea.offsetTop - ys * scale;
+            updateTransform();
+        };
+
+        mapArea.onmousedown = function(e) {
+            if(e.button !== 0) return; // 只接受左鍵
+            isDragging = true;
+            startX = e.clientX - translateX;
+            startY = e.clientY - translateY;
+            mapArea.style.cursor = 'grabbing';
+        };
+        
+        window.onmouseup = function() { isDragging = false; mapArea.style.cursor = 'crosshair'; };
+        
+        window.onmousemove = function(e) {
+            if (isDragging) {
+                e.preventDefault();
+                translateX = e.clientX - startX;
+                translateY = e.clientY - startY;
+                updateTransform();
             }
-            if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-                const isExpand = (e.code === 'ArrowRight');
-                const delta = isExpand ? step : -step;
-                if (currentAnchor === 'tl' || currentAnchor === 'bl') current.maxX += delta;
-                else current.minX -= delta;
-            }
-            render();
+        };
+
+        // 點擊事件 (核心邏輯)
+        imgElement.onclick = function(e) {
+            if(isDragging) return; // 拖曳中不觸發點擊
+
+            const rect = imgElement.getBoundingClientRect();
+            // 計算點擊位置相對於圖片原始大小的座標
+            const clickX = (e.clientX - rect.left) / scale;
+            const clickY = (e.clientY - rect.top) / scale;
+
+            handleMapClick(clickX, clickY, e.clientX, e.clientY);
+        };
+    }
+
+    function handleMapClick(px, py, clientX, clientY) {
+        if (currentStep === 1) {
+            coords1 = { x: px, y: py };
+            addMarker(clientX, clientY, 1);
+            document.getElementById('status1').innerHTML = `已設定 (Px: ${Math.round(px)}, ${Math.round(py)})`;
+            document.getElementById('status1').classList.add('done');
+            
+            // 切換到步驟 2
+            currentStep = 2;
+            document.getElementById('step1').classList.remove('active');
+            const box2 = document.getElementById('step2');
+            box2.style.opacity = '1';
+            box2.style.pointerEvents = 'auto';
+            box2.classList.add('active');
+
+        } else if (currentStep === 2) {
+            coords2 = { x: px, y: py };
+            addMarker(clientX, clientY, 2);
+            document.getElementById('status2').innerHTML = `已設定 (Px: ${Math.round(px)}, ${Math.round(py)})`;
+            document.getElementById('status2').classList.add('done');
+            
+            calculate();
         }
-    });
+    }
 
-    document.getElementById('speedRange').addEventListener('input', (e) => {
-        document.getElementById('speedVal').innerText = e.target.value + " px";
-    });
+    function addMarker(cx, cy, step) {
+        // 這裡我們只是在視覺上標記，為了簡化，直接貼在 body 上 (不隨圖片縮放移動，只標示當下)
+        // 若要隨圖片移動比較複雜，這裡僅作示意
+        // 為了讓使用者確認點到了，我們直接利用 imgElement 的座標系來畫點
+        const dot = document.createElement('div');
+        dot.className = `marker marker-${step}`;
+        // 為了準確，我們把它放在 map-area 內，但位置要換算
+        // 簡單做法：重新計算圖片內的 pixel 轉回 screen
+        // 這裡偷懶一下，只顯示最後一次點擊的相對位置，因為計算完就結束了
+    }
 
-    window.copyConfig = function() {
-        const imgName = document.getElementById('imgNameInput').value;
-        const code = `// ==========================================
-// 🌍 地圖設定檔 (v4.1 校正完成)
+    function calculate() {
+        // ==========================================
+        // 🧮 核心逆向算法
+        // ==========================================
+        // 我們有兩個點的對應關係：
+        // P1(px1, py1) <--> G1(gx1, gy1)
+        // P2(px2, py2) <--> G2(gx2, gy2)
+        
+        // 1. 計算比例 (Scale) = 遊戲單位 / 像素
+        // 圖片 X 軸 (右) 對應 遊戲 X 軸 (右)
+        const scaleX = (pointB.gameX - pointA.gameX) / (coords2.x - coords1.x);
+        
+        // 圖片 Y 軸 (下) 對應 遊戲 Y 軸 (下) 
+        // 注意：遊戲座標 -9000 是上面，-1000 是下面，所以數值是增加的
+        const scaleY = (pointB.gameY - pointA.gameY) / (coords2.y - coords1.y);
+
+        // 2. 推算左上角 (0,0) 的遊戲座標
+        // MinX = G1.x - (P1.x * scaleX)
+        const finalMinX = pointA.gameX - (coords1.x * scaleX);
+        const finalMinY = pointA.gameY - (coords1.y * scaleY);
+
+        // 3. 推算右下角 (imgW, imgH) 的遊戲座標
+        const finalMaxX = finalMinX + (imgWidth * scaleX);
+        const finalMaxY = finalMinY + (imgHeight * scaleY);
+
+        // 顯示結果
+        window.calculatedConfig = `// ==========================================
+// 🌍 地圖設定檔 (v5 逆向校正)
 // ==========================================
 const mapSettings = {
-    imageName: "${imgName}",
-    minX: ${Math.round(current.minX)},
-    maxX: ${Math.round(current.maxX)},
-    minY: ${Math.round(current.minY)},
-    maxY: ${Math.round(current.maxY)}
+    imageName: "${document.getElementById('imgName').value}",
+    
+    // 自動計算結果：
+    minX: ${Math.round(finalMinX)},
+    maxX: ${Math.round(finalMaxX)},
+    minY: ${Math.round(finalMinY)},
+    maxY: ${Math.round(finalMaxY)}
 };`;
-        navigator.clipboard.writeText(code).then(() => alert("✅ 代碼已複製！")).catch(() => console.log(code));
+
+        document.getElementById('result-area').style.display = 'block';
     }
+
+    function copyResult() {
+        navigator.clipboard.writeText(window.calculatedConfig).then(() => {
+            alert("✅ 設定檔已複製！\n請貼到 config.js 中覆蓋。");
+        });
+    }
+
+    function resetUI() {
+        document.getElementById('step1').classList.add('active');
+        document.getElementById('status1').innerHTML = "未設定";
+        document.getElementById('status1').classList.remove('done');
+        
+        const box2 = document.getElementById('step2');
+        box2.classList.remove('active');
+        box2.style.opacity = '0.5';
+        box2.style.pointerEvents = 'none';
+        document.getElementById('status2').innerHTML = "未設定";
+        document.getElementById('status2').classList.remove('done');
+        
+        document.getElementById('result-area').style.display = 'none';
+    }
+
+    // 初次載入
+    loadImage();
 </script>
 
 </body>
