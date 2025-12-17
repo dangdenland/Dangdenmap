@@ -3,235 +3,184 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地圖校正工具 v2.0</title>
+    <title>地圖校正工具 v3.0 (對齊版)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; }
-        #map { height: 100vh; width: 100vw; background-color: #f5f5f5; }
+        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background: #222; }
+        #map { height: 100vh; width: 100vw; background-color: #333; }
 
-        /* 校正面板樣式 */
-        #calibration-panel {
-            position: fixed; bottom: 20px; left: 20px; z-index: 9999;
-            background: rgba(0, 0, 0, 0.85); color: #fff; padding: 15px;
-            border-radius: 8px; width: 300px; font-size: 13px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            border: 1px solid #555;
-            display: flex; flex-direction: column; gap: 10px;
+        /* 面板樣式 */
+        #panel {
+            position: fixed; top: 10px; right: 10px; z-index: 9999;
+            background: rgba(0, 0, 0, 0.9); color: #fff; padding: 15px;
+            border-radius: 8px; width: 320px; font-size: 14px;
+            border: 1px solid #666; box-shadow: 0 0 20px rgba(0,0,0,0.8);
         }
-        #calibration-panel h2 { margin: 0; font-size: 16px; color: #ffcc00; border-bottom: 1px solid #666; padding-bottom: 8px; text-align: center; }
+        h2 { margin: 0 0 10px 0; color: #ffcc00; font-size: 18px; border-bottom: 1px solid #555; padding-bottom: 5px; }
         
-        .section { background: #333; padding: 8px; border-radius: 4px; }
-        .section-title { font-size: 11px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
-
-        .cal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .cal-row label { flex: 1; font-size: 12px; }
-        .cal-row input { width: 80px; padding: 2px 4px; text-align: right; background: #222; color: #fff; border: 1px solid #555; font-family: monospace; }
-
-        /* 十字移動鍵樣式 */
-        .move-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; width: 120px; margin: 0 auto; }
-        .move-btn { background: #444; border: 1px solid #666; color: white; padding: 8px 0; cursor: pointer; border-radius: 4px; text-align: center; }
-        .move-btn:hover { background: #666; }
-        .move-btn:active { background: #888; }
-        .move-center { grid-column: 2; }
+        .control-group { margin-bottom: 15px; background: #222; padding: 10px; border-radius: 4px; border: 1px solid #444; }
+        .group-title { font-weight: bold; color: #4db8ff; margin-bottom: 5px; display: block; }
+        .desc { font-size: 12px; color: #aaa; margin-bottom: 5px; }
         
-        .step-control { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 5px; }
-        .step-control input { width: 50px; text-align: center; background: #222; color: #fff; border: 1px solid #555; }
+        .key-hint { display: inline-block; padding: 2px 6px; background: #555; border-radius: 3px; font-family: monospace; color: #fff; border: 1px solid #777; font-size: 12px; }
 
-        .action-btn {
-            width: 100%; padding: 10px; margin-top: 5px;
-            background-color: #28a745; color: white; border: none; 
-            border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px;
+        .btn-copy {
+            width: 100%; padding: 12px; background-color: #28a745; color: white; border: none; 
+            border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px;
         }
-        .action-btn:hover { background-color: #218838; }
+        .btn-copy:hover { background-color: #218838; }
+
+        .status-row { display: flex; justify-content: space-between; font-family: monospace; font-size: 12px; color: #888; margin-top: 5px; }
         
-        .hint { font-size: 11px; color: #aaa; line-height: 1.4; text-align: center; }
-        
-        .leaflet-marker-icon, .leaflet-interactive { opacity: 0.8 !important; }
+        /* 讓圓點更明顯 */
+        .leaflet-marker-icon { opacity: 0.9 !important; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<!-- 校正面板 -->
-<div id="calibration-panel">
-    <h2>🛠️ 地圖底圖校正器</h2>
-    
-    <!-- 平移控制區 -->
-    <div class="section">
-        <div class="section-title">平移整張地圖 (移動)</div>
-        <div class="move-controls">
-            <!-- 上 -->
-            <button class="move-btn move-center" onclick="moveMap(0, -1)">⬆️</button>
-            <!-- 左/右 -->
-            <button class="move-btn" onclick="moveMap(-1, 0)">⬅️</button>
-            <div style="text-align:center; line-height: 30px; font-size:20px;">Move</div>
-            <button class="move-btn" onclick="moveMap(1, 0)">➡️</button>
-            <!-- 下 -->
-            <button class="move-btn move-center" onclick="moveMap(0, 1)">⬇️</button>
-        </div>
-        <div class="step-control">
-            <label>移動速度:</label>
-            <input type="number" id="step-size" value="50" min="1">
-        </div>
+<div id="panel">
+    <h2>🛠️ 地圖對齊工具 v3.0</h2>
+
+    <div class="control-group">
+        <span class="group-title">步驟 1: 對齊左上角 (平移)</span>
+        <div class="desc">找一個靠<b>左上角</b>的村莊 (如: 東田)</div>
+        <div class="desc">使用 <span class="key-hint">W</span> <span class="key-hint">A</span> <span class="key-hint">S</span> <span class="key-hint">D</span> 移動整張底圖</div>
+        <div class="desc" style="color:#ff6b6b">目標：讓該村莊與圓點重合</div>
     </div>
 
-    <!-- 邊界數值區 -->
-    <div class="section">
-        <div class="section-title">邊界微調 (伸縮/裁切)</div>
-        <div class="cal-row"><label>上 (Y Min):</label><input type="number" id="in-minY"></div>
-        <div class="cal-row"><label>下 (Y Max):</label><input type="number" id="in-maxY"></div>
-        <div class="cal-row"><label>左 (X Min):</label><input type="number" id="in-minX"></div>
-        <div class="cal-row"><label>右 (X Max):</label><input type="number" id="in-maxX"></div>
+    <div class="control-group">
+        <span class="group-title">步驟 2: 對齊右下角 (拉伸)</span>
+        <div class="desc">找一個靠<b>右下角</b>的村莊 (如: 灣內)</div>
+        <div class="desc">使用 <span class="key-hint">⬆️</span> <span class="key-hint">⬇️</span> <span class="key-hint">⬅️</span> <span class="key-hint">➡️</span> 拉伸底圖邊緣</div>
+        <div class="desc" style="color:#ff6b6b">目標：左上角不動，讓右下角重合</div>
     </div>
 
-    <button class="action-btn" onclick="copyConfig()">📋 複製設定碼</button>
-    <div class="hint">貼回 config.js 覆蓋即可</div>
+    <div class="control-group">
+        <span class="group-title">微調速度</span>
+        <input type="range" id="speedRange" min="1" max="100" value="20" style="width:100%">
+        <div style="text-align:right; font-size:12px;" id="speedVal">20 px</div>
+        <div class="desc">按住 <span class="key-hint">Shift</span> 可加速 5 倍</div>
+    </div>
+
+    <button class="btn-copy" onclick="copyConfig()">✅ 完成！複製代碼</button>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- 引入設定檔與資料檔 -->
 <script src="config.js"></script>
 <script src="data.js"></script>
 
 <script>
-    if (typeof mapSettings === 'undefined' || typeof rawData === 'undefined') {
-        alert("找不到 config.js 或 data.js，請確認檔案在同一目錄下。");
+    if (typeof mapSettings === 'undefined') {
+        // 防呆預設值 (如果讀不到 config.js)
+        var mapSettings = { imageName: "map_bg.png", minX: -2560, maxX: 9359, minY: -9728, maxY: 1023 };
     }
 
     // 初始化地圖
     const map = L.map('map', {
-        crs: L.CRS.Simple,
-        minZoom: -6, maxZoom: 3, zoomSnap: 0.5,
-        attributionControl: false
+        crs: L.CRS.Simple, minZoom: -6, maxZoom: 2, zoomSnap: 0.1, attributionControl: false, zoomControl: false
     });
+    L.control.zoom({ position: 'topleft' }).addTo(map);
 
-    // 繪製參考紅點
+    // 繪製村莊參考點 (紅點)
     const bounds = [];
-    rawData.forEach(v => {
-        const latLng = [-v.y, v.x];
-        bounds.push(latLng);
-        L.circleMarker(latLng, {
-            radius: 4, color: 'red', fillColor: '#f00', fillOpacity: 0.8, weight: 1
-        }).bindTooltip(v.name, {permanent: true, direction: 'top', className: 'cal-label'}).addTo(map);
-    });
-
-    if (bounds.length > 0) map.fitBounds(bounds, { padding: [100, 100] });
-
-    // ==========================================
-    // 校正邏輯
-    // ==========================================
-    
-    // 當前數值狀態
-    let current = {
-        minY: mapSettings.minY,
-        maxY: mapSettings.maxY,
-        minX: mapSettings.minX,
-        maxX: mapSettings.maxX
-    };
-
-    const inMinY = document.getElementById('in-minY');
-    const inMaxY = document.getElementById('in-maxY');
-    const inMinX = document.getElementById('in-minX');
-    const inMaxX = document.getElementById('in-maxX');
-    const stepInput = document.getElementById('step-size');
-
-    // 介面更新函數
-    function updateInputs() {
-        inMinY.value = current.minY;
-        inMaxY.value = current.maxY;
-        inMinX.value = current.minX;
-        inMaxX.value = current.maxX;
+    if (typeof rawData !== 'undefined') {
+        rawData.forEach(v => {
+            const latLng = [-v.y, v.x];
+            bounds.push(latLng);
+            L.circleMarker(latLng, {
+                radius: 3, color: 'red', fillColor: '#ff0000', fillOpacity: 1, weight: 1
+            }).bindTooltip(v.name, {permanent: true, direction: 'right', offset:[5,0], opacity:0.8}).addTo(map);
+        });
+        if (bounds.length > 0) map.fitBounds(bounds, { padding: [100, 100] });
     }
 
-    // 初始化輸入框
-    updateInputs();
+    // 當前設定狀態
+    let current = {
+        minX: mapSettings.minX,
+        maxX: mapSettings.maxX,
+        minY: mapSettings.minY,
+        maxY: mapSettings.maxY
+    };
 
     // 建立底圖
     let mapImageLayer = L.imageOverlay(
         mapSettings.imageName, 
         [[-current.minY, current.minX], [-current.maxY, current.maxX]], 
-        { opacity: 0.65, zIndex: -1 }
+        { opacity: 0.6, zIndex: -1 } // 半透明
     );
     mapImageLayer.addTo(map);
 
-    // 更新地圖函數
-    function renderMap() {
-        mapImageLayer.setBounds([
-            [-current.minY, current.minX], 
-            [-current.maxY, current.maxX]
-        ]);
+    // 更新畫面
+    function render() {
+        // 更新圖片位置
+        mapImageLayer.setBounds([[-current.minY, current.minX], [-current.maxY, current.maxX]]);
     }
 
-    // --- 功能 1: 平移 (Move) ---
-    // dirX: -1(左), 1(右), 0
-    // dirY: -1(上), 1(下), 0
-    window.moveMap = function(dirX, dirY) {
-        const step = parseFloat(stepInput.value) || 50;
-        
-        // 更新 X (左右平移)
-        if (dirX !== 0) {
-            current.minX += (dirX * step);
-            current.maxX += (dirX * step);
+    // 鍵盤控制邏輯
+    document.addEventListener('keydown', (e) => {
+        let step = parseInt(document.getElementById('speedRange').value);
+        if (e.shiftKey) step *= 5; // 按 Shift 加速
+
+        // 1. WASD 平移 (Move Whole Map)
+        // 同時改變 Min 和 Max，保持寬高不變，只改變位置
+        if (e.code === 'KeyW') { // 上移 (Y 變小 -> Lat 變大) -> 遊戲座標 Y 減小 (因為 Lat = -Y)
+            current.minY -= step; current.maxY -= step; render();
+        }
+        if (e.code === 'KeyS') { // 下移
+            current.minY += step; current.maxY += step; render();
+        }
+        if (e.code === 'KeyA') { // 左移
+            current.minX -= step; current.maxX -= step; render();
+        }
+        if (e.code === 'KeyD') { // 右移
+            current.minX += step; current.maxX += step; render();
         }
 
-        // 更新 Y (上下平移)
-        // 注意：遊戲座標 Y 越小越上面 (minY)，Y 越大越下面 (maxY)
-        // 當我們按「上」時，視覺上圖片要往上跑 => Lat 變大 => -GameY 變大 => GameY 變小
-        // 所以按上 (-1) 應該要減去 step
-        if (dirY !== 0) {
-            current.minY += (dirY * step);
-            current.maxY += (dirY * step);
+        // 2. 方向鍵 拉伸 (Stretch)
+        // 固定左上角 (MinX, MinY 不動)，只改變右下角 (MaxX, MaxY)
+        if (e.code === 'ArrowUp') { // 收縮高度
+            current.maxY -= step; render();
         }
-
-        updateInputs();
-        renderMap();
-    }
-
-    // --- 功能 2: 手動輸入 (Resize) ---
-    function onManualInput() {
-        current.minY = parseFloat(inMinY.value);
-        current.maxY = parseFloat(inMaxY.value);
-        current.minX = parseFloat(inMinX.value);
-        current.maxX = parseFloat(inMaxX.value);
-        renderMap();
-    }
-
-    [inMinY, inMaxY, inMinX, inMaxX].forEach(el => {
-        el.addEventListener('input', onManualInput);
+        if (e.code === 'ArrowDown') { // 拉長高度
+            current.maxY += step; render();
+        }
+        if (e.code === 'ArrowLeft') { // 收縮寬度
+            current.maxX -= step; render();
+        }
+        if (e.code === 'ArrowRight') { // 拉長寬度
+            current.maxX += step; render();
+        }
     });
 
-    // --- 功能 3: 複製設定 ---
+    // 速度滑桿顯示
+    document.getElementById('speedRange').addEventListener('input', function(e) {
+        document.getElementById('speedVal').innerText = e.target.value + " px";
+    });
+
+    // 複製代碼
     window.copyConfig = function() {
         const code = `// ==========================================
-// 🌍 地圖設定檔
+// 🌍 地圖設定檔 (校正完成)
 // ==========================================
 
 const mapSettings = {
     imageName: "${mapSettings.imageName}",
-
-    // 左邊界 (X Min)
+    
     minX: ${current.minX},
-    
-    // 右邊界 (X Max)
     maxX: ${current.maxX},
-    
-    // 上邊界 (Y Min)
     minY: ${current.minY},
-    
-    // 下邊界 (Y Max)
     maxY: ${current.maxY}
 };`;
 
         navigator.clipboard.writeText(code).then(() => {
-            alert("✅ 設定碼已複製！\n請打開 config.js 並貼上覆蓋。");
+            alert("✅ 代碼已複製！請覆蓋 config.js 的內容");
         }).catch(() => {
-            alert("複製失敗，請手動複製 Console 內容");
             console.log(code);
+            alert("複製失敗，請看 Console");
         });
     }
-
 </script>
 
 </body>
