@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地圖校正工具 (開發者專用)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; }
+        #map { height: 100vh; width: 100vw; background-color: #f5f5f5; }
+
+        /* 校正面板樣式 */
+        #calibration-panel {
+            position: fixed; bottom: 20px; left: 20px; z-index: 9999;
+            background: rgba(0, 0, 0, 0.85); color: #fff; padding: 20px;
+            border-radius: 8px; width: 280px; font-size: 13px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border: 1px solid #555;
+        }
+        #calibration-panel h2 { margin: 0 0 15px 0; font-size: 16px; color: #ffcc00; border-bottom: 1px solid #666; padding-bottom: 8px; }
+        .cal-row { margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .cal-row label { flex: 1; }
+        .cal-row input { width: 90px; padding: 4px; text-align: right; background: #333; color: #fff; border: 1px solid #555; }
+        
+        button {
+            width: 100%; padding: 10px; margin-top: 15px;
+            background-color: #28a745; color: white; border: none; 
+            border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px;
+        }
+        button:hover { background-color: #218838; }
+        
+        .hint { margin-top: 10px; font-size: 11px; color: #aaa; line-height: 1.4; }
+        
+        /* 讓標記點稍微透明，方便看底圖 */
+        .leaflet-marker-icon, .leaflet-interactive { opacity: 0.8 !important; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- 校正面板 -->
+<div id="calibration-panel">
+    <h2>🛠️ 地圖底圖校正器</h2>
+    
+    <div class="cal-row">
+        <label>上邊界 (Y Min):</label>
+        <input type="number" id="in-minY" step="50">
+    </div>
+    <div class="cal-row">
+        <label>下邊界 (Y Max):</label>
+        <input type="number" id="in-maxY" step="50">
+    </div>
+    <div class="cal-row">
+        <label>左邊界 (X Min):</label>
+        <input type="number" id="in-minX" step="50">
+    </div>
+    <div class="cal-row">
+        <label>右邊界 (X Max):</label>
+        <input type="number" id="in-maxX" step="50">
+    </div>
+
+    <button onclick="copyConfig()">📋 複製設定碼</button>
+    
+    <div class="hint">
+        1. 調整數值直到圓點與地圖對齊。<br>
+        2. 點擊按鈕複製代碼。<br>
+        3. 貼回 <b>config.js</b> 覆蓋原本內容。
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- 引入您的設定檔與資料檔 -->
+<script src="config.js"></script>
+<script src="data.js"></script>
+
+<script>
+    // 檢查檔案
+    if (typeof mapSettings === 'undefined' || typeof rawData === 'undefined') {
+        alert("找不到 config.js 或 data.js，請確認檔案在同一目錄下。");
+    }
+
+    // 初始化地圖
+    const map = L.map('map', {
+        crs: L.CRS.Simple,
+        minZoom: -6, maxZoom: 3, zoomSnap: 0.5,
+        attributionControl: false
+    });
+
+    // 繪製村莊點 (作為校正基準)
+    // 這裡我們只畫簡單的紅點，方便對位
+    const bounds = [];
+    rawData.forEach(v => {
+        const latLng = [-v.y, v.x];
+        bounds.push(latLng);
+        L.circleMarker(latLng, {
+            radius: 4, 
+            color: 'red', fillColor: '#f00', fillOpacity: 0.8, weight: 1
+        }).bindTooltip(v.name, {permanent: true, direction: 'top', className: 'cal-label'}).addTo(map);
+    });
+
+    if (bounds.length > 0) map.fitBounds(bounds, { padding: [100, 100] });
+
+    // ==========================================
+    // 校正邏輯
+    // ==========================================
+    
+    // 1. 讀取 config.js 的初始值
+    let currentSettings = { ...mapSettings }; // 複製一份
+    
+    const inputMinY = document.getElementById('in-minY');
+    const inputMaxY = document.getElementById('in-maxY');
+    const inputMinX = document.getElementById('in-minX');
+    const inputMaxX = document.getElementById('in-maxX');
+
+    // 填入面板
+    inputMinY.value = currentSettings.minY;
+    inputMaxY.value = currentSettings.maxY;
+    inputMinX.value = currentSettings.minX;
+    inputMaxX.value = currentSettings.maxX;
+
+    // 2. 建立底圖圖層
+    let mapImageLayer = L.imageOverlay(
+        currentSettings.imageName, 
+        [
+            [-currentSettings.minY, currentSettings.minX], 
+            [-currentSettings.maxY, currentSettings.maxX]
+        ], 
+        { opacity: 0.7, zIndex: -1 } // 半透明方便對位
+    );
+    mapImageLayer.addTo(map);
+
+    // 3. 更新函數
+    function updateMap() {
+        // 取得輸入框數值
+        const minY = parseFloat(inputMinY.value);
+        const maxY = parseFloat(inputMaxY.value);
+        const minX = parseFloat(inputMinX.value);
+        const maxX = parseFloat(inputMaxX.value);
+
+        // 更新圖層位置 (注意 Y 軸翻轉)
+        // TopLeft: [-minY, minX]
+        // BottomRight: [-maxY, maxX]
+        mapImageLayer.setBounds([
+            [-minY, minX], 
+            [-maxY, maxX]
+        ]);
+    }
+
+    // 監聽輸入事件
+    [inputMinY, inputMaxY, inputMinX, inputMaxX].forEach(input => {
+        input.addEventListener('input', updateMap);
+    });
+
+    // 4. 複製功能
+    function copyConfig() {
+        const code = `// ==========================================
+// 🌍 地圖設定檔 (每次換圖只要改這裡)
+// ==========================================
+
+const mapSettings = {
+    imageName: "${currentSettings.imageName}",
+
+    // 左邊界 (X Min)
+    minX: ${inputMinX.value},
+    
+    // 右邊界 (X Max)
+    maxX: ${inputMaxX.value},
+    
+    // 上邊界 (Y Min)
+    minY: ${inputMinY.value},
+    
+    // 下邊界 (Y Max)
+    maxY: ${inputMaxY.value}
+};`;
+
+        navigator.clipboard.writeText(code).then(() => {
+            alert("✅ 設定碼已複製！\n請打開 config.js 並貼上覆蓋。");
+        }).catch(err => {
+            console.error('複製失敗', err);
+            alert("複製失敗，請手動選取複製");
+        });
+    }
+
+    // 加上參考格線方便對齊
+    L.GridLayer.DebugCoords = L.GridLayer.extend({
+        createTile: function (coords) {
+            var tile = document.createElement('div');
+            tile.style.outline = '1px solid rgba(0,0,0,0.1)';
+            return tile;
+        }
+    });
+    map.addLayer(new L.GridLayer.DebugCoords());
+
+</script>
+
+</body>
+</html>
