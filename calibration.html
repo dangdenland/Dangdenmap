@@ -3,213 +3,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地圖校正工具 v5.2 (極簡除錯版)</title>
+    <title>地圖校正工具 v5.3 (點擊修正版)</title>
     <style>
         body { background: #222; color: #fff; font-family: sans-serif; padding: 20px; }
         
-        /* 控制面板 */
+        /* 右上角控制面板 */
         #controls {
-            position: fixed; top: 10px; right: 10px; width: 300px;
-            background: rgba(0,0,0,0.9); border: 2px solid #ffcc00;
+            position: fixed; top: 10px; right: 10px; width: 280px;
+            background: rgba(0,0,0,0.9); border: 2px solid #00ff00;
             padding: 15px; border-radius: 8px; z-index: 9999;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
         }
         
         /* 圖片容器 */
         #map-container {
-            margin-top: 50px;
-            border: 2px solid red; /* 紅框讓你知道容器在哪 */
-            min-height: 500px;
-            overflow: auto; /* 超出範圍會出現捲軸 */
+            margin-top: 20px;
+            border: 2px dashed #555;
+            overflow: auto; /* 允許捲動 */
             position: relative;
-            background: #444;
+            background: #333;
+            cursor: crosshair; /* 滑鼠變十字 */
+        }
+
+        /* 圖片樣式：不做 max-width 限制，讓它以原始大小顯示，避免縮放誤差 */
+        #target-img {
+            display: block;
             cursor: crosshair;
         }
 
-        /* 圖片本體 */
-        #target-img {
-            display: block;
-            max-width: 100%; /* 強制縮小以適應螢幕 */
-            height: auto;
-        }
-
-        button { padding: 10px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        button { padding: 10px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 10px; border-radius: 5px; }
         .btn-green { background: #28a745; color: white; border: none; }
-        .btn-blue { background: #007bff; color: white; border: none; }
         
-        #status-log { color: yellow; font-family: monospace; margin-top: 10px; font-size: 12px; white-space: pre-wrap; }
+        #instruction { margin: 10px 0; font-weight:bold; color: #4db8ff; font-size: 14px; }
+        #status-log { color: #ffff00; font-family: monospace; margin-top: 10px; font-size: 12px; white-space: pre-wrap; border-top: 1px solid #555; padding-top: 5px;}
 
         /* 標記點 */
         .marker {
-            position: absolute; width: 10px; height: 10px; background: red;
+            position: absolute; width: 12px; height: 12px; background: rgba(255, 0, 0, 0.8);
             border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%);
-            pointer-events: none;
+            pointer-events: none; z-index: 1000;
         }
-        .marker.p2 { background: blue; }
+        .marker.p2 { background: rgba(0, 100, 255, 0.8); }
     </style>
 </head>
 <body>
 
 <!-- 控制區 -->
 <div id="controls">
-    <h3>🛠️ 校正工具 v5.2</h3>
-    <p style="font-size:12px; color:#ccc;">如果圖片太大，請稍等幾秒。</p>
+    <h3 style="margin:0 0 10px 0;">🛠️ 校正 v5.3</h3>
     
     <input type="file" id="fileInput" accept="image/*" onchange="loadFile(this)">
     
-    <div id="instruction" style="margin: 10px 0; font-weight:bold; color: #4db8ff;">
-        步驟 1: 請先選擇圖片檔案
-    </div>
+    <div id="instruction">步驟 1: 請選擇圖片</div>
 
     <button id="copyBtn" class="btn-green" style="display:none;" onclick="copyCode()">📋 複製代碼</button>
     
-    <div id="status-log">等待操作...</div>
+    <div id="status-log">系統準備就緒...</div>
 </div>
 
 <!-- 圖片顯示區 -->
 <div id="map-container">
-    <div id="click-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index: 10;"></div>
-    <img id="target-img" alt="請載入圖片" />
+    <!-- 這裡不加任何蓋板，直接放圖片 -->
+    <img id="target-img" alt="" />
 </div>
 
 <script>
     // ============================
-    // 1. 寫死基準點 (這是最準的)
+    // 1. 基準點座標 (請勿修改)
     // ============================
+    // 點 A: 灣內 (右上)
     const pointA = { name: "灣內", gameX: 6259, gameY: -9041 };
+    // 點 B: 中澳 (左下)
     const pointB = { name: "中澳", gameX: -1531, gameY: -1010 };
 
     // 變數
     let step = 0;
     let imgNaturalWidth = 0;
     let imgNaturalHeight = 0;
-    let p1_pixel = null;
-    let p2_pixel = null;
+    let p1_pixel = null; // 點1 (灣內) 的像素座標
+    let p2_pixel = null; // 點2 (中澳) 的像素座標
+    let currentFileName = "map_bg.png";
 
     const logEl = document.getElementById('status-log');
     const imgEl = document.getElementById('target-img');
-    const container = document.getElementById('map-container');
     const instruct = document.getElementById('instruction');
 
     function log(msg) {
-        logEl.innerText += "\n" + msg;
-        console.log(msg);
+        logEl.innerText = msg + "\n" + logEl.innerText; // 新訊息在上面
     }
 
-    // 2. 檔案讀取功能
+    // 2. 檔案讀取
     function loadFile(input) {
         if (input.files && input.files[0]) {
-            log("正在讀取檔案...");
+            currentFileName = input.files[0].name;
+            log("讀取中...");
             const reader = new FileReader();
             
             reader.onload = function(e) {
-                log("檔案讀取完成，正在顯示...");
-                imgEl.src = e.target.result; // 設定圖片
+                imgEl.src = e.target.result;
                 
                 imgEl.onload = function() {
                     imgNaturalWidth = this.naturalWidth;
                     imgNaturalHeight = this.naturalHeight;
-                    log(`圖片載入成功！尺寸: ${imgNaturalWidth} x ${imgNaturalHeight}`);
+                    log(`✅ 載入成功 (${imgNaturalWidth}x${imgNaturalHeight})`);
                     
-                    // 重置步驟
+                    // 重置狀態
                     step = 1;
-                    p1_pixel = null;
-                    p2_pixel = null;
-                    // 清除舊標記
+                    p1_pixel = null; p2_pixel = null;
                     document.querySelectorAll('.marker').forEach(e => e.remove());
+                    document.getElementById('copyBtn').style.display = 'none';
                     
                     instruct.innerText = "步驟 2: 請點擊圖上的「灣內」(右上)";
-                    instruct.style.color = "#ff4444"; // 紅色提示
+                    instruct.style.color = "#ff4444"; 
                 };
             };
             reader.readAsDataURL(input.files[0]);
         }
     }
 
-    // 3. 點擊偵測 (直接綁在圖片上)
+    // 3. 點擊邏輯 (直接使用 offsetX/offsetY 最準確)
     imgEl.addEventListener('click', function(e) {
         if (step === 0) return;
 
-        // 取得點擊位置相對於圖片的座標
-        // 由於圖片可能被 CSS 縮放 (max-width: 100%)，我們需要換算回原始像素
-        const rect = imgEl.getBoundingClientRect();
+        // e.offsetX / e.offsetY 是相對於圖片左上角的像素位置
+        // 因為我們沒有設 CSS width/height，所以顯示大小 = 原始大小
+        // 這樣就不需要換算縮放比例，直接就是最準的像素座標
+        const clickX = e.offsetX;
+        const clickY = e.offsetY;
+
+        log(`點擊座標 P${step}: ${clickX}, ${clickY}`);
         
-        // 點擊位置在圖片元素內的 X, Y
-        const clickX = e.clientX - rect.left;
-        const clickY = e.clientY - rect.top;
-
-        // 縮放比例 (顯示大小 / 原始大小)
-        const scaleX = imgEl.width / imgNaturalWidth;
-        const scaleY = imgEl.height / imgNaturalHeight;
-
-        // 換算回原始像素
-        const realX = clickX / scaleX;
-        const realY = clickY / scaleY;
-
-        log(`點擊座標: ${Math.round(realX)}, ${Math.round(realY)}`);
-        
-        // 標記紅點 (視覺回饋)
-        // 注意：這裡的紅點是貼在 map-container 上，位置要用 pageX/pageY 對應
-        const marker = document.createElement('div');
-        marker.className = step === 1 ? 'marker' : 'marker p2';
-        // 為了讓標記跟著圖片跑，我們把它 append 到 container，並使用相對定位
-        // 這裡為了簡單，直接用絕對定位貼在點擊處
-        marker.style.left = (e.pageX - container.offsetLeft + container.scrollLeft) + 'px';
-        marker.style.top = (e.pageY - container.offsetTop + container.scrollTop) + 'px';
-        // 修正：上面的算法在有 scroll 時會跑掉，直接用 clientX 配合 fixed 
-        // 或是最簡單的：直接算 style.left = e.offsetX ... 
-        // 這裡為了除錯版簡單化，我們直接貼在 body 上
-        marker.style.position = 'fixed';
-        marker.style.left = e.clientX + 'px';
-        marker.style.top = e.clientY + 'px';
-        document.body.appendChild(marker);
+        // 在點擊處產生標記 (視覺回饋)
+        createMarker(e.pageX, e.pageY, step);
 
         if (step === 1) {
-            p1_pixel = { x: realX, y: realY };
+            p1_pixel = { x: clickX, y: clickY };
             step = 2;
             instruct.innerText = "步驟 3: 請點擊圖上的「中澳」(左下)";
-            instruct.style.color = "#4444ff"; // 藍色提示
+            instruct.style.color = "#4488ff"; 
         } else if (step === 2) {
-            p2_pixel = { x: realX, y: realY };
+            p2_pixel = { x: clickX, y: clickY };
             step = 3;
-            instruct.innerText = "計算完成！請複製代碼";
+            instruct.innerText = "✅ 計算完成！請複製代碼";
+            instruct.style.color = "#00ff00";
             document.getElementById('copyBtn').style.display = 'block';
             calculate();
         }
     });
 
-    // 4. 計算與輸出
+    function createMarker(pageX, pageY, stepIdx) {
+        const marker = document.createElement('div');
+        marker.className = stepIdx === 1 ? 'marker' : 'marker p2';
+        marker.style.left = pageX + 'px';
+        marker.style.top = pageY + 'px';
+        document.body.appendChild(marker);
+    }
+
+    // 4. 逆推算法
     function calculate() {
-        // 遊戲座標差 / 像素座標差 = 每像素代表多少遊戲單位
+        // 計算每像素代表多少遊戲單位 (Scale)
+        // 圖片 X 軸 (向右) 對應 遊戲 X 軸 (向右增加)
         const scaleX = (pointB.gameX - pointA.gameX) / (p2_pixel.x - p1_pixel.x);
+        
+        // 圖片 Y 軸 (向下) 對應 遊戲 Y 軸 (向下增加? 還是向上增加?)
+        // 在 Leaflet 的 CRS.Simple 或是您的遊戲邏輯中：
+        // 灣內 Y = -9041 (上方)
+        // 中澳 Y = -1010 (下方)
+        // 所以從上到下，遊戲 Y 值是 增加的 (-9000 -> -1000)
         const scaleY = (pointB.gameY - pointA.gameY) / (p2_pixel.y - p1_pixel.y);
 
-        // 推算左上角 (0,0) 的遊戲座標
+        // 推算圖片左上角 (0,0) 的遊戲座標
+        // MinX = 點A遊戲X - (點A像素X * ScaleX)
         const minX = pointA.gameX - (p1_pixel.x * scaleX);
         const minY = pointA.gameY - (p1_pixel.y * scaleY);
 
-        // 推算右下角
+        // 推算圖片右下角
         const maxX = minX + (imgNaturalWidth * scaleX);
         const maxY = minY + (imgNaturalHeight * scaleY);
 
-        const fileName = document.getElementById('fileInput').files[0].name;
-
         window.resultCode = `// ==========================================
-// 🌍 地圖設定檔 (v5.2 逆向校正)
+// 🌍 地圖設定檔 (v5.3 逆向校正)
 // ==========================================
 const mapSettings = {
-    imageName: "${fileName}",
+    imageName: "${currentFileName}",
     
+    // 計算結果
     minX: ${Math.round(minX)},
     maxX: ${Math.round(maxX)},
     minY: ${Math.round(minY)},
     maxY: ${Math.round(maxY)}
 };`;
-        log("計算結果:\n" + window.resultCode);
+        log("計算完畢，請按按鈕複製。");
     }
 
     function copyCode() {
         navigator.clipboard.writeText(window.resultCode).then(() => {
-            alert("✅ 已複製！請覆蓋 config.js");
+            alert("✅ 已複製！\n請打開 config.js 全選並貼上覆蓋。");
         });
     }
 </script>
