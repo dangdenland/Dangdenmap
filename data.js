@@ -53,7 +53,7 @@ var rawData = [
     { id: 33, name: "永豐", en: "Ing-hong", abbr: "豐", x: 3162, y: -6582, h: 69, prov: "海北", pref: "海山", county: "舟山", dist: "大豐" },
     { id: 34, name: "城南", en: "Siann-lam", abbr: "廓", x: 3165, y: -6379, h: 70, prov: "海北", pref: "海山", county: "舟山", dist: "大豐" },
     { id: 35, name: "新山", en: "Sin-san", abbr: "岫", x: 3108, y: -6262, h: 72, prov: "海北", pref: "海山", county: "舟山", dist: "大豐" },
-    { id: 39, name: "郭溪", en: "Kueh-khe", abbr: "郭", x: 5289, y: 6041, h: 0, prov: "海北", pref: "海山", county: "舟山", dist: "東港" },
+    { id: 39, name: "郭溪", en: "Kueh-khe", abbr: "郭", x: 5289, y: -6041, h: 0, prov: "海北", pref: "海山", county: "舟山", dist: "東港" },
     { id: 37, name: "新社", en: "Sin-sia", abbr: "社", x: 4929, y: -6485, h: 0, prov: "海北", pref: "海山", county: "舟山", dist: "東港" },
     { id: 40, name: "大坑", en: "Tua-khenn", abbr: "坑", x: 5412, y: -6864, h: 0, prov: "海北", pref: "海山", county: "舟山", dist: "東港" },
     { id: 14, name: "南圍", en: "Lam-ui", abbr: "圍", x: 5220, y: -7424, h: 71, prov: "海北", pref: "北山", county: "雪川", dist: "雪口" },
