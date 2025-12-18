@@ -6,12 +6,12 @@ var countyHues = {
 };
 
 // ==========================================
-// 🏘️ 村莊資料表 (郭溪已修正)
+// 🏘️ 村莊資料表
 // ==========================================
 var rawData = [
     // --- 中京省 ---
     { id: 1, name: "東田", en: "Tang-tian", abbr: "東", x: -751, y: -172, h: 64, prov: "中京", pref: "大成", county: "南安", dist: "東樹" },
-    { id: 2, name: "赤樹", en: "Tshiah-tshu", abbr: "赤", x: -131, y: -254, h: 67, prov: "中京", pref: "大成", county: "南安", dist: "東樹" },
+    { id: 2, name: "赤樹", en: "Tshiah-tshu", abbr: "赤", x: -131, y: -254, h: 67, prov: "中京", pref: "大成", county: "南安", dist: "東樹", mapUrl: "TshiahTshiu-map.html" },
     { id: 5, name: "大田", en: "Tai-tian", abbr: "大", x: 148, y: 175, h: 62, prov: "中京", pref: "大成", county: "南安", dist: "東樹" },
     { id: 6, name: "東湖", en: "Tang-oo", abbr: "湖", x: 52, y: 30, h: 69, prov: "中京", pref: "大成", county: "南安", dist: "東樹" },
     { id: 7, name: "東仁", en: "Tang-jin", abbr: "仁", x: -16, y: 73, h: 62, prov: "中京", pref: "大成", county: "南安", dist: "東樹" },
@@ -45,7 +45,7 @@ var rawData = [
     { id: 33, name: "永豐", en: "Ing-hong", abbr: "豐", x: 3162, y: -6582, h: 69, prov: "海北", pref: "海山", county: "舟山", dist: "大豐" },
     { id: 34, name: "城南", en: "Siann-lam", abbr: "廓", x: 3165, y: -6379, h: 70, prov: "海北", pref: "海山", county: "舟山", dist: "大豐" },
     { id: 35, name: "新山", en: "Sin-san", abbr: "岫", x: 3108, y: -6262, h: 72, prov: "海北", pref: "海山", county: "舟山", dist: "大豐" },
-    { id: 39, name: "郭溪", en: "Kueh-khe", abbr: "郭", x: 5289, y: -6041, h: 0, prov: "海北", pref: "海山", county: "舟山", dist: "東港" }, // 已修正負號
+    { id: 39, name: "郭溪", en: "Kueh-khe", abbr: "郭", x: 5289, y: -6041, h: 0, prov: "海北", pref: "海山", county: "舟山", dist: "東港" },
     { id: 37, name: "新社", en: "Sin-sia", abbr: "社", x: 4929, y: -6485, h: 0, prov: "海北", pref: "海山", county: "舟山", dist: "東港" },
     { id: 40, name: "大坑", en: "Tua-khenn", abbr: "坑", x: 5412, y: -6864, h: 0, prov: "海北", pref: "海山", county: "舟山", dist: "東港" },
     { id: 14, name: "南圍", en: "Lam-ui", abbr: "圍", x: 5220, y: -7424, h: 71, prov: "海北", pref: "北山", county: "雪川", dist: "雪口" },
