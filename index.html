@@ -296,31 +296,63 @@
     // 初始化視野
     if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
 
-    // ==========================================
-    // 📝 圖例 (Legend)
+   // ==========================================
+    // 📝 圖例 (Legend) - 分省分府顯示
     // ==========================================
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function (map) {
         const div = L.DomUtil.create('div', 'legend');
          L.DomEvent.disableScrollPropagation(div);
          L.DomEvent.disableClickPropagation(div);
-        div.innerHTML = "<h4>圖例</h4><small style='color:#666'>*可拖曳名稱標籤</small><br><br>";
-        Object.keys(hierarchy).sort((a,b) => (countyHues[a] || 999) - (countyHues[b] || 999)).forEach(county => {
-            const districts = Array.from(hierarchy[county]).sort();
-            districts.forEach(dist => {
-                const key = `${county}-${dist}`;
-                let displayName;
-                if (county === "未定") {
-                    displayName = "未定行政區";
-                } else if (!dist || dist === "直轄") {
-                    displayName = `${county}縣 (直轄)`;
-                } else {
-                    displayName = `${county}縣 ${dist}郡`;
-                }
-                div.innerHTML += `<div class="legend-item"><i class="legend-color" style="background:${districtColors[key]}"></i><span>${displayName}</span></div>`;
+        
+        div.innerHTML = "<h4>🗺️ 行政區劃</h4>";
+        div.innerHTML += "<div style='font-size:11px; color:#666; margin-bottom:10px;'><a href='changelog.html' target='_blank' style='color:#007bff; text-decoration:none;'>📜 查看更新紀錄</a></div>";
+
+        // 資料整理： Prov -> County -> Dist
+        const structure = {};
+        rawData.forEach(v => {
+            if (!structure[v.prov]) structure[v.prov] = {};
+            if (!structure[v.prov][v.county]) structure[v.prov][v.county] = new Set();
+            structure[v.prov][v.county].add(v.dist || "直轄");
+        });
+
+        // 依省份排序顯示 (中京 -> 海北 -> 其他)
+        const provOrder = ["中京", "海北", "未定"];
+        
+        provOrder.forEach(prov => {
+            if (!structure[prov]) return;
+            
+            // 省份標題 (區隔線)
+            let provColor = "#333";
+            if(prov === "中京") provColor = "#d35400"; // 暖色標題
+            if(prov === "海北") provColor = "#2980b9"; // 冷色標題
+            
+            div.innerHTML += `<div style="margin-top:8px; border-bottom:2px solid ${provColor}; padding-bottom:2px; font-weight:bold; color:${provColor}">${prov}${prov!=="未定"?"省":""}</div>`;
+
+            // 該省下的縣
+            Object.keys(structure[prov]).forEach(county => {
+                const districts = Array.from(structure[prov][county]).sort();
+                
+                districts.forEach(dist => {
+                    const key = `${county}-${dist}`;
+                    const color = districtColors[key] || "#999";
+                    
+                    let displayName;
+                    if (county === "未定") displayName = "未定區域";
+                    else if (!dist || dist === "直轄") displayName = `${county}縣 (直轄)`;
+                    else displayName = `${county}縣 ${dist}郡`;
+
+                    div.innerHTML += `
+                        <div class="legend-item">
+                            <i class="legend-color" style="background:${color}"></i>
+                            <span>${displayName}</span>
+                        </div>`;
+                });
             });
         });
-        div.innerHTML += "<hr style='margin:8px 0; border:0; border-top:1px solid #ccc'>";
+
+        // 鐵路圖例
+        div.innerHTML += "<hr style='margin:10px 0; border:0; border-top:1px solid #ccc'>";
         div.innerHTML += `<div class="legend-item"><span class="legend-line" style="background:#333"></span><span>鐵路 (已通車)</span></div>`;
         div.innerHTML += `<div class="legend-item"><span class="legend-line" style="background:#e67e22; border-top: 3px dashed #e67e22; height:0; background:none;"></span><span>鐵路 (興建中)</span></div>`;
         return div;
