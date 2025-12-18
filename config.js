@@ -7,8 +7,8 @@ var mapSettings = {
     imageName: "map_bg.jpg",
 
     // 微調後的對齊參數
-    minX: -2560,
-    maxX: 8900,  // 原本 8928，縮一點點
-    minY: -9728,
-    maxY: 860    // 原本 880，縮一點點
+    minX: -2386,
+    maxX: 9454,
+    minY: -9678,
+    maxY: 108
 };
