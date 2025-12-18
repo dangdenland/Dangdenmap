@@ -15,7 +15,6 @@
         .legend-color { width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; border: 1px solid #666; flex-shrink: 0; }
         .legend-line { width: 20px; height: 3px; margin-right: 8px; display: inline-block; vertical-align: middle; }
         
-        /* 按鈕移到左上角，避開右側選單 */
         .changelog-btn {
             position: absolute; top: 80px; left: 10px; z-index: 1000;
             background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
@@ -27,8 +26,21 @@
 
         .grid-label { font-size: 10px; color: #999; white-space: nowrap; }
         .village-label-wrapper { background: transparent; border: none; }
-        .village-label-content { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); display: inline-block; width: max-content; min-width: 40px; box-sizing: border-box; font-size: 12px; font-weight: bold; color: #000; background-color: #fff; padding: 4px 8px; border: 1px solid #666; border-radius: 4px; white-space: nowrap; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); cursor: move; z-index: 10; user-select: none; }
-        .village-label-content:hover { background-color: #f0f8ff; border-color: #007bff; z-index: 20; }
+        
+        /* 標籤樣式：增加 pointer-events: auto 確保可拖曳，但預設偏移 */
+        .village-label-content { 
+            position: absolute; left: 0; top: 0; 
+            /* 預設偏移：中心點對齊，並往上移一點，避免蓋住圓點 */
+            transform: translate(-50%, -100%); margin-top: -8px;
+            
+            display: inline-block; width: max-content; min-width: 40px; box-sizing: border-box; 
+            font-size: 12px; font-weight: bold; color: #000; background-color: #fff; 
+            padding: 4px 8px; border: 1px solid #666; border-radius: 4px; 
+            white-space: nowrap; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); 
+            cursor: move; z-index: 600; user-select: none; 
+        }
+        .village-label-content:hover { background-color: #f0f8ff; border-color: #007bff; z-index: 700; }
+        
         .leaflet-popup-content { font-size: 14px; line-height: 1.6; }
         
         @media print { .leaflet-control-container, .changelog-btn { display: none !important; } #map { height: 100%; width: 100%; } }
@@ -44,7 +56,6 @@
 <script src="data.js"></script>
 
 <script>
-    // 移除會亂跳的錯誤檢查，改用預設值防呆
     var safeSettings = (typeof mapSettings !== 'undefined') ? mapSettings : { imageName: "map_bg.jpg", minX: -2560, maxX: 8928, minY: -9728, maxY: 880 };
     var safeData = (typeof rawData !== 'undefined') ? rawData : [];
 
@@ -120,7 +131,10 @@
         const color = districtColors[`${v.county}-${distKey}`] || "#333";
         
         let linkHtml = "";
-        if (v.mapUrl) linkHtml = `<div style="margin-top:12px; text-align:center;"><a href="${v.mapUrl}" target="_blank" style="display: inline-block; text-decoration: none; background-color: #007bff; color: white; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#0056b3'" onmouseout="this.style.backgroundColor='#007bff'">查看村莊軌道圖 ➜</a></div>`;
+        // 修正：檢查 data.js 裡的 mapUrl
+        if (v.mapUrl) {
+            linkHtml = `<div style="margin-top:12px; text-align:center;"><a href="${v.mapUrl}" target="_blank" style="display: inline-block; text-decoration: none; background-color: #007bff; color: white; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#0056b3'" onmouseout="this.style.backgroundColor='#007bff'">查看村莊軌道圖 ➜</a></div>`;
+        }
         
         const subName = v.en ? `<div style="font-size:12px; color:#888; margin-top:-2px;">${v.en}</div>` : "";
         const heightInfo = (v.h !== undefined) ? ` | 高度: ${v.h}m` : "";
@@ -135,62 +149,141 @@
                 ${linkHtml}
             </div>`;
         
-        const marker = L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#333", weight: 1, opacity: 1, fillOpacity: 1 });
+        // 圓點 (z-index 500)
+        const marker = L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#333", weight: 1, opacity: 1, fillOpacity: 1, zIndexOffset: 500 });
         marker.bindPopup(popupContent);
         villageLayer.addLayer(marker);
 
+        // 引導線
         const leaderLine = L.polyline([latLng, latLng], { color: '#555', weight: 1, opacity: 0.6, interactive: false });
         leaderLineLayer.addLayer(leaderLine);
 
+        // 文字標籤 (z-index 600)
         const labelMarker = L.marker(latLng, {
             icon: L.divIcon({ className: 'village-label-wrapper', html: `<div class="village-label-content">${v.name}</div>`, iconSize: [0, 0], iconAnchor: [0, 0] }),
-            draggable: true, zIndexOffset: 1000 
+            draggable: true, zIndexOffset: 600 
         });
         labelMarker.bindPopup(popupContent);
+        
         labelMarker.on('drag', function(e) {
             const currentLabelLatLng = e.target.getLatLng();
             const originalDotLatLng = latLng;
-            if(map.distance(currentLabelLatLng, originalDotLatLng) < 10) leaderLine.setLatLngs([originalDotLatLng, originalDotLatLng]);
-            else leaderLine.setLatLngs([originalDotLatLng, currentLabelLatLng]);
+            // 手動拖曳時，更新引導線
+            leaderLine.setLatLngs([originalDotLatLng, currentLabelLatLng]);
+            
+            // 標記這個 label 已經被手動移動過，之後自動演算法不要動它
+            labelMarker.isManualMoved = true;
         });
         labelLayer.addLayer(labelMarker);
 
-        labelObjects.push({ marker: labelMarker, line: leaderLine, origin: latLng, x: 0, y: 0 });
+        labelObjects.push({
+            marker: labelMarker,
+            line: leaderLine,
+            origin: latLng,
+            name: v.name,
+            x: v.x, // 這裡僅為參考，實際以 latLng 為準
+            y: v.y
+        });
     });
 
-    function autoLayoutLabels() {
+    // 核心演算法：動態重算標籤位置
+    function updateLabels() {
         if(labelObjects.length === 0) return;
-        const visibleLabels = labelObjects.map(obj => {
-            const pt = map.latLngToContainerPoint(obj.marker.getLatLng());
-            return { ...obj, x: pt.x, y: pt.y };
+
+        const currentZoom = map.getZoom();
+        
+        // 1. 先將所有「未手動移動」的標籤，重置回圓點位置 (Lat/Lng)
+        // 這樣可以保證放大縮小時，標籤不會「漂」走
+        labelObjects.forEach(obj => {
+            if (!obj.marker.isManualMoved) {
+                // 重置位置到圓點
+                obj.marker.setLatLng(obj.origin);
+                // 視覺上給一個預設的像素偏移 (CSS 已設定往上)
+            }
         });
-        for(let k=0; k<20; k++) { 
+
+        // 2. 計算螢幕像素位置，進行避讓
+        const visibleLabels = [];
+        labelObjects.forEach(obj => {
+            // 只處理在畫面內的
+            if(map.getBounds().contains(obj.marker.getLatLng())) {
+                const pt = map.latLngToContainerPoint(obj.marker.getLatLng());
+                visibleLabels.push({
+                    obj: obj,
+                    x: pt.x,
+                    y: pt.y,
+                    w: 60, // 假設標籤寬度
+                    h: 30  // 假設標籤高度
+                });
+            }
+        });
+
+        // 3. 迭代推擠 (Pixel Space)
+        for(let k=0; k<10; k++) { // 減少迭代次數優化效能
             for(let i=0; i<visibleLabels.length; i++) {
+                const a = visibleLabels[i];
+                if(a.obj.marker.isManualMoved) continue; // 手動過的不要動
+
                 for(let j=i+1; j<visibleLabels.length; j++) {
-                    const a = visibleLabels[i];
                     const b = visibleLabels[j];
+                    if(b.obj.marker.isManualMoved && a.obj.marker.isManualMoved) continue;
+
                     const dx = a.x - b.x;
                     const dy = a.y - b.y;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    if(dist < 55) { 
-                        const force = (55 - dist) / 2;
-                        let angle = Math.atan2(dy, dx);
-                        if(dist === 0) angle = Math.random() * Math.PI * 2;
-                        a.x += Math.cos(angle) * force; a.y += Math.sin(angle) * force;
-                        b.x -= Math.cos(angle) * force; b.y -= Math.sin(angle) * force;
+                    const distSq = dx*dx + dy*dy;
+                    const minDist = 50; // 最小像素距離
+
+                    if(distSq < minDist * minDist) {
+                        const dist = Math.sqrt(distSq) || 1;
+                        const force = (minDist - dist) / 2;
+                        const angle = Math.atan2(dy, dx);
+                        
+                        const moveX = Math.cos(angle) * force;
+                        const moveY = Math.sin(angle) * force;
+
+                        if(!a.obj.marker.isManualMoved) { a.x += moveX; a.y += moveY; }
+                        if(!b.obj.marker.isManualMoved) { b.x -= moveX; b.y -= moveY; }
                     }
                 }
             }
         }
-        visibleLabels.forEach(obj => {
-            const newLatLng = map.containerPointToLatLng([obj.x, obj.y]);
-            if(newLatLng.lat !== obj.origin.lat || newLatLng.lng !== obj.origin.lng) {
-                obj.marker.setLatLng(newLatLng);
-                obj.line.setLatLngs([obj.origin, newLatLng]);
+
+        // 4. 將新的像素位置轉回 LatLng 並套用
+        visibleLabels.forEach(item => {
+            if(!item.obj.marker.isManualMoved) {
+                // 限制最大漂移距離 (避免飛太遠)
+                const originPt = map.latLngToContainerPoint(item.obj.origin);
+                const dx = item.x - originPt.x;
+                const dy = item.y - originPt.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const maxDist = 80; // 最大允許漂移像素
+
+                if(dist > maxDist) {
+                    const angle = Math.atan2(dy, dx);
+                    item.x = originPt.x + Math.cos(angle) * maxDist;
+                    item.y = originPt.y + Math.sin(angle) * maxDist;
+                }
+
+                const newLatLng = map.containerPointToLatLng([item.x, item.y]);
+                item.obj.marker.setLatLng(newLatLng);
+                
+                // 更新線條
+                if (dist > 15) { // 只有距離夠遠才畫線
+                    item.obj.line.setLatLngs([item.obj.origin, newLatLng]);
+                    item.obj.line.setStyle({opacity: 0.5});
+                } else {
+                    item.obj.line.setLatLngs([item.obj.origin, item.obj.origin]); // 隱藏線
+                    item.obj.line.setStyle({opacity: 0});
+                }
             }
         });
     }
-    map.whenReady(() => setTimeout(autoLayoutLabels, 500));
+
+    // 綁定事件：縮放結束時重新計算
+    map.on('zoomend', updateLabels);
+    map.on('moveend', updateLabels);
+    // 初次執行
+    map.whenReady(() => setTimeout(updateLabels, 500));
 
     function drawGrid() {
         gridLayer.clearLayers();
@@ -264,26 +357,6 @@
         return div;
     };
     legend.addTo(map);
-
-    // === 圖片除錯小工具 ===
-// 1. 檢查變數是否讀取成功
-if (typeof mapSettings === 'undefined') {
-    alert("❌ 嚴重錯誤：config.js 沒有載入成功！");
-} else {
-    // 2. 嘗試載入圖片並回報結果
-    var testImg = new Image();
-    testImg.src = mapSettings.imageName;
-    
-    testImg.onload = function() {
-        console.log("✅ 圖片讀取成功：" + mapSettings.imageName);
-        // 如果這裡成功但地圖沒顯示，那就是座標設錯了
-    };
-    
-    testImg.onerror = function() {
-        alert("❌ 圖片載入失敗！\n\n程式想找的檔名是：" + mapSettings.imageName + "\n\n請確認：\n1. 資料夾裡有沒有這個檔案？\n2. 副檔名是 png 還是 jpg？\n3. 大小寫是否一致？");
-    };
-}
-    
 </script>
 </body>
 </html>
