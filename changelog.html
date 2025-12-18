@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地圖更新紀錄 (Changelog)</title>
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f4f4f9; color: #333; line-height: 1.6; margin: 0; padding: 40px; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { border-bottom: 3px solid #007bff; padding-bottom: 10px; margin-bottom: 30px; color: #2c3e50; }
+        
+        .version-block { margin-bottom: 40px; border-left: 4px solid #ddd; padding-left: 20px; position: relative; }
+        .version-block.latest { border-left-color: #28a745; }
+        
+        .version-header { display: flex; align-items: baseline; margin-bottom: 15px; }
+        .version-tag { background: #007bff; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; margin-right: 15px; font-size: 0.9em; }
+        .version-date { color: #888; font-size: 0.9em; }
+        .version-title { font-size: 1.2em; font-weight: bold; color: #34495e; margin: 0; }
+        
+        ul { margin: 0; padding-left: 20px; }
+        li { margin-bottom: 8px; }
+        
+        .tag-new { color: #28a745; font-weight: bold; margin-right: 5px; }
+        .tag-mod { color: #e67e22; font-weight: bold; margin-right: 5px; }
+        .tag-fix { color: #dc3545; font-weight: bold; margin-right: 5px; }
+
+        .back-link { display: inline-block; margin-bottom: 20px; text-decoration: none; color: #007bff; font-weight: bold; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="index.html" class="back-link">← 返回地圖</a>
+    <h1>🗺️ 地圖更新紀錄</h1>
+
+    <!-- 最新版本 -->
+    <div class="version-block latest">
+        <div class="version-header">
+            <span class="version-tag" style="background:#28a745">v2.0</span>
+            <span class="version-date">2023-10-27</span> <!-- 請自行修改日期 -->
+        </div>
+        <p class="version-title">行政區劃大改制</p>
+        <ul>
+            <li><span class="tag-new">新增</span> 確立兩大省份：<b>中京省</b> 與 <b>海北省</b>。</li>
+            <li><span class="tag-mod">調整</span> 全面重整府縣層級，新增 <b>東埔府</b>、<b>北山府</b>、<b>東山府</b> 等行政單位。</li>
+            <li><span class="tag-mod">更名</span> 原「新村莊01-04」正式命名為 <b>北汕</b>、<b>頂崁</b>、<b>新厝</b>、<b>林頭</b>。</li>
+            <li><span class="tag-mod">劃分</span> 所有村莊皆已指派至對應的郡級單位，無未定行政區。</li>
+            <li><span class="tag-mod">遷移</span> <b>大坑</b> (ID:40) 改隸屬於 舟山縣/東港郡。</li>
+        </ul>
+    </div>
+
+    <!-- 舊版本 -->
+    <div class="version-block">
+        <div class="version-header">
+            <span class="version-tag">v1.5</span>
+        </div>
+        <p class="version-title">地圖校正與擴充</p>
+        <ul>
+            <li><span class="tag-new">工具</span> 新增地圖校正工具 (v5.4)，支援平移縮放與逆向推算。</li>
+            <li><span class="tag-new">新增</span> 增加 4 個新村莊 (ID: 43-46)。</li>
+            <li><span class="tag-new">新增</span> 增加 2 個大湖縣村莊 (ID: 41-42)。</li>
+            <li><span class="tag-fix">修正</span> 修正底圖座標偏移問題。</li>
+        </ul>
+    </div>
+
+    <div class="version-block">
+        <div class="version-header">
+            <span class="version-tag">v1.0</span>
+        </div>
+        <p class="version-title">專案初始化</p>
+        <ul>
+            <li><span class="tag-new">發布</span> 基礎互動地圖上線。</li>
+            <li><span class="tag-new">功能</span> 支援村莊點位顯示、名稱標籤拖曳、鐵路路線繪製。</li>
+        </ul>
+    </div>
+
+</div>
+
+</body>
+</html>
