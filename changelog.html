@@ -3,106 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地圖更新紀錄</title>
+    <title>地圖更新日誌</title>
     <style>
-        body { font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f0f2f5; color: #333; margin: 0; padding: 40px 20px; }
-        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 50px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif; background-color: #ffffff; color: #24292e; line-height: 1.6; margin: 0; padding: 40px; }
+        .container { max-width: 700px; margin: 0 auto; }
         
-        /* 標題區 */
-        header { border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 40px; display: flex; justify-content: space-between; align-items: center; }
-        h1 { margin: 0; color: #2c3e50; font-size: 28px; }
-        .back-btn { text-decoration: none; background: #007bff; color: white; padding: 10px 20px; border-radius: 6px; font-weight: bold; transition: 0.2s; }
-        .back-btn:hover { background: #0056b3; }
+        /* 頂部導航 */
+        header { margin-bottom: 50px; padding-bottom: 20px; border-bottom: 1px solid #eaecef; display: flex; justify-content: space-between; align-items: center; }
+        h1 { font-size: 24px; margin: 0; font-weight: 600; }
+        .back-link { font-size: 14px; color: #0366d6; text-decoration: none; border: 1px solid #e1e4e8; padding: 5px 12px; border-radius: 6px; transition: 0.2s; }
+        .back-link:hover { background-color: #f6f8fa; }
 
         /* 版本區塊 */
-        .version-card { margin-bottom: 50px; position: relative; }
-        .version-card::before { content: ''; position: absolute; left: -25px; top: 0; bottom: 0; width: 4px; background: #eee; border-radius: 2px; }
-        .version-card.latest::before { background: #28a745; }
-
-        .date-badge { display: inline-block; background: #6c757d; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.85em; font-weight: bold; margin-bottom: 10px; }
-        .latest .date-badge { background: #28a745; }
-
-        h2 { margin: 0 0 15px 0; color: #34495e; }
+        .version-section { position: relative; padding-left: 20px; margin-bottom: 40px; border-left: 2px solid #e1e4e8; }
+        .version-section.latest { border-left-color: #28a745; }
         
-        /* 內容樣式 */
-        .change-group { margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #ccc; }
-        .change-group h3 { margin: 0 0 10px 0; font-size: 16px; color: #555; }
-        .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-right: 6px; color: white; }
-        .tag-new { background-color: #28a745; }
-        .tag-mod { background-color: #ffc107; color: #333; }
-        .tag-move { background-color: #17a2b8; }
-        .tag-fix { background-color: #dc3545; }
-
-        ul { margin: 0; padding-left: 20px; }
-        li { margin-bottom: 6px; line-height: 1.6; }
-        .highlight { color: #d63384; font-weight: bold; }
-        .arrow { color: #999; margin: 0 5px; }
+        .date { font-size: 12px; color: #586069; margin-bottom: 4px; display: block; font-family: monospace; }
+        .version-title { font-size: 18px; font-weight: 600; margin: 0 0 15px 0; display: flex; align-items: center; }
+        .tag-v { background: #f1f8ff; color: #0366d6; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-right: 10px; border: 1px solid #c8e1ff; }
+        
+        /* 內容列表 */
+        ul { padding-left: 20px; margin: 0; }
+        li { margin-bottom: 8px; font-size: 14px; color: #24292e; }
+        
+        /* 標籤微調 (不再使用大色塊) */
+        .badge { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 6px; border: 1px solid transparent; }
+        .badge-new { color: #22863a; background: #f0fff4; border-color: #28a745; } /* 綠 */
+        .badge-fix { color: #cb2431; background: #ffeef0; border-color: #d73a49; } /* 紅 */
+        .badge-mod { color: #b08800; background: #fff8c5; border-color: #ffd33d; } /* 黃 */
+        
+        .sub-group { margin-top: 15px; margin-bottom: 5px; font-weight: bold; font-size: 13px; color: #586069; text-transform: uppercase; letter-spacing: 0.5px; }
+        .highlight { background: #fff5b1; padding: 0 4px; border-radius: 2px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <header>
-        <h1>📜 地圖更新日誌</h1>
-        <a href="index.html" class="back-link back-btn">← 返回地圖</a>
+        <h1>更新日誌 (Changelog)</h1>
+        <a href="index.html" class="back-link">← 返回地圖</a>
     </header>
 
-    <!-- v2.0 (2025.12.18) -->
-    <div class="version-card latest">
-        <span class="date-badge">2025.12.18 (v2.0)</span>
-        <h2>行政區劃大改制：省府制度確立</h2>
+    <!-- v2.0 -->
+    <div class="version-section latest">
+        <span class="date">2025-12-18</span>
+        <div class="version-title"><span class="tag-v">v2.0</span> 行政區劃改制</div>
         
-        <div class="change-group" style="border-left-color: #d35400;">
-            <h3>🟥 中京省 (Tiong-kiann-seng) 改制</h3>
-            <ul>
-                <li><span class="tag-new">新增</span> 設立 <b>東埔府</b>，下轄 外埔縣、港南縣。</li>
-                <li><span class="tag-mod">調整</span> <b>大成府</b> 縮編，專轄 南安縣、澳口縣。</li>
-                <li><span class="tag-new">新設</span> <b>南安縣/林頭郡</b>：包含新設立之林頭村。</li>
-                <li><span class="tag-new">新設</span> <b>澳口縣/西澳郡</b>：整合中島、中澳及新設村莊。</li>
-                <li><span class="tag-new">新設</span> <b>外埔縣/崎頂郡</b>、<b>開山郡</b>。</li>
-            </ul>
-        </div>
-
-        <div class="change-group" style="border-left-color: #2980b9;">
-            <h3>🟦 海北省 (Hai-pak-seng) 改制</h3>
-            <ul>
-                <li><span class="tag-new">新增</span> 設立 <b>海山府</b> (轄舟山縣)、<b>北山府</b> (轄雪川縣)。</li>
-                <li><span class="tag-new">新增</span> 設立 <b>東山府</b> (轄大湖縣)。</li>
-                <li><span class="tag-move">移籍</span> 村莊 <b>大坑</b> (ID:40)：原屬雪川縣 <span class="arrow">➜</span> 改隸 <b>舟山縣/東港郡</b>。</li>
-                <li><span class="tag-move">移籍</span> 村莊 <b>島田</b> (ID:11)：原屬雪川縣 <span class="arrow">➜</span> 改隸 <b>大湖縣/山腳郡</b>。</li>
-                <li><span class="tag-new">新設</span> <b>雪川縣/雪口郡</b>：包含南圍、雪頭。</li>
-            </ul>
-        </div>
-
-        <div class="change-group" style="border-left-color: #28a745;">
-            <h3>🏘️ 村莊更名與編制</h3>
-            <ul>
-                <li><span class="tag-mod">更名</span> ID 43: 新村莊01 <span class="arrow">➜</span> <span class="highlight">北汕</span> (劃入 澳口縣/西澳郡)。</li>
-                <li><span class="tag-mod">更名</span> ID 44: 新村莊02 <span class="arrow">➜</span> <span class="highlight">頂崁</span> (劃入 澳口縣/西澳郡)。</li>
-                <li><span class="tag-mod">更名</span> ID 45: 新村莊03 <span class="arrow">➜</span> <span class="highlight">新厝</span> (劃入 外埔縣/開山郡)。</li>
-                <li><span class="tag-mod">更名</span> ID 46: 新村莊04 <span class="arrow">➜</span> <span class="highlight">林頭</span> (劃入 南安縣/林頭郡)。</li>
-                <li><span class="tag-new">新增</span> 湖頭 (ID:41)、內山 (ID:42)，劃入 大湖縣/山腳郡。</li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- v1.5 -->
-    <div class="version-card">
-        <span class="date-badge">2025.12.16 (v1.5)</span>
-        <h2>功能擴充</h2>
+        <div class="sub-group">架構調整</div>
         <ul>
-            <li><span class="tag-new">工具</span> 發布地圖校正工具 v5.4，支援平移縮放校正底圖。</li>
-            <li><span class="tag-fix">修正</span> 修正底圖座標對位問題。</li>
+            <li><span class="badge badge-new">New</span> 確立兩大省份：<b>中京省</b> 與 <b>海北省</b>。</li>
+            <li><span class="badge badge-new">New</span> 新增府級單位：東埔府、海山府、北山府、東山府。</li>
+        </ul>
+
+        <div class="sub-group">區域變動</div>
+        <ul>
+            <li><span class="badge badge-mod">Mod</span> <b>大成府</b> 縮編，專轄南安縣、澳口縣。</li>
+            <li><span class="badge badge-mod">Mod</span> <b>大坑</b> (ID:40) 移籍至 舟山縣/東港郡。</li>
+            <li><span class="badge badge-mod">Mod</span> <b>島田</b> (ID:11) 移籍至 大湖縣/山腳郡。</li>
+        </ul>
+
+        <div class="sub-group">村莊更名</div>
+        <ul>
+            <li>新村莊01 → <span class="highlight">北汕</span> (澳口縣)</li>
+            <li>新村莊02 → <span class="highlight">頂崁</span> (澳口縣)</li>
+            <li>新村莊03 → <span class="highlight">新厝</span> (外埔縣)</li>
+            <li>新村莊04 → <span class="highlight">林頭</span> (南安縣)</li>
         </ul>
     </div>
 
-    <!-- v1.0 (2025.12.13) -->
-    <div class="version-card">
-        <span class="date-badge">2025.12.13 (v1.0)</span>
-        <h2>專案初始化</h2>
+    <!-- v1.5 -->
+    <div class="version-section">
+        <span class="date">2025-12-16</span>
+        <div class="version-title"><span class="tag-v">v1.5</span> 工具擴充</div>
         <ul>
-            <li><span class="tag-new">發布</span> 互動式地圖上線。</li>
-            <li><span class="tag-new">功能</span> 基礎點位顯示、圖層控制、鐵路路線繪製。</li>
+            <li><span class="badge badge-new">New</span> 上線地圖校正工具 v5.4 (支援平移縮放)。</li>
+            <li><span class="badge badge-fix">Fix</span> 修正底圖座標偏移與解析度問題。</li>
+            <li><span class="badge badge-new">New</span> 新增村莊資料 (ID: 41-46)。</li>
+        </ul>
+    </div>
+
+    <!-- v1.0 -->
+    <div class="version-section">
+        <span class="date">2025-12-13</span>
+        <div class="version-title"><span class="tag-v">v1.0</span> 專案初始化</div>
+        <ul>
+            <li><span class="badge badge-new">New</span> 互動式地圖上線 (Leaflet 核心)。</li>
+            <li><span class="badge badge-new">New</span> 支援村莊點位、自動避讓標籤、鐵路繪製功能。</li>
         </ul>
     </div>
 
