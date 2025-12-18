@@ -9,14 +9,14 @@
         body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; }
         #map { height: 100vh; width: 100vw; background-color: #f5f5f5; }
         
-        /* 圖例樣式 (Legend) */
+        /* 圖例樣式 */
         .legend { background: rgba(255, 255, 255, 0.95); padding: 10px 15px; border-radius: 5px; border: 1px solid #bbb; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 13px; max-height: 60vh; overflow-y: auto; line-height: 1.5; }
         .legend h4 { margin: 0 0 8px 0; font-size: 15px; border-bottom: 2px solid #666; padding-bottom: 5px; }
         .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
         .legend-color { width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; border: 1px solid #666; flex-shrink: 0; }
         .legend-line { width: 20px; height: 3px; margin-right: 8px; display: inline-block; vertical-align: middle; }
         
-        /* 獨立的更新紀錄按鈕 (右上角) */
+        /* 獨立按鈕 (更新紀錄) */
         .changelog-btn {
             position: absolute; top: 80px; right: 10px; z-index: 1000;
             background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
@@ -26,20 +26,19 @@
         }
         .changelog-btn:hover { background: #f4f4f4; color: #007bff; }
 
-        /* 其他樣式保持不變 */
+        /* 標籤與彈窗 */
         .grid-label { font-size: 10px; color: #999; white-space: nowrap; }
         .village-label-wrapper { background: transparent; border: none; }
         .village-label-content { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); display: inline-block; width: max-content; min-width: 40px; box-sizing: border-box; font-size: 12px; font-weight: bold; color: #000; background-color: #fff; padding: 4px 8px; border: 1px solid #666; border-radius: 4px; white-space: nowrap; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); cursor: move; z-index: 10; user-select: none; }
         .village-label-content:hover { background-color: #f0f8ff; border-color: #007bff; z-index: 20; }
         .leaflet-popup-content { font-size: 14px; line-height: 1.6; }
+        
         @media print { .leaflet-control-container, .changelog-btn { display: none !important; } #map { height: 100%; width: 100%; } }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
-
-<!-- 獨立按鈕 -->
 <a href="changelog.html" target="_blank" class="changelog-btn">📜 更新紀錄</a>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -47,16 +46,17 @@
 <script src="data.js"></script>
 
 <script>
+    // 1. 防呆檢查
     if (typeof mapSettings === 'undefined') { var mapSettings = { imageName: "map_bg.jpg", minX: -2560, maxX: 8928, minY: -9728, maxY: 880 }; }
     if (typeof rawData === 'undefined') { alert("錯誤：data.js 未載入！"); }
 
     const map = L.map('map', { crs: L.CRS.Simple, minZoom: -6, maxZoom: 3, zoomSnap: 0.5, attributionControl: false });
     
-    // 資料處理
+    // 2. 資料前處理
     const coordMap = {};
     rawData.forEach(v => { coordMap[v.name] = [-v.y, v.x]; });
 
-    // 階層處理
+    // 階層整理 (Prov -> County -> Dist)
     const hierarchy = {};
     rawData.forEach(v => {
         if (!hierarchy[v.prov]) hierarchy[v.prov] = {};
@@ -64,24 +64,27 @@
         hierarchy[v.prov][v.county].add(v.dist || "直轄");
     });
     
+    // 顏色對應 (根據 County)
     const districtColors = {}; 
     Object.keys(hierarchy).forEach(prov => {
         Object.keys(hierarchy[prov]).forEach(county => {
             const districts = Array.from(hierarchy[prov][county]).sort();
-            const baseHue = countyHues[county] !== undefined ? countyHues[county] : 0;
+            const baseHue = (typeof countyHues !== 'undefined' && countyHues[county] !== undefined) ? countyHues[county] : 0;
             districts.forEach((dist, index) => {
+                const key = `${county}-${dist}`;
                 if (county === "未定") {
-                    districtColors[`${county}-${dist}`] = "#7f8c8d";
+                    districtColors[key] = "#7f8c8d";
                 } else {
                     const count = districts.length;
                     let lightness = 50;
                     if (count > 1) lightness = 35 + (index / (count - 1)) * 35; 
-                    districtColors[`${county}-${dist}`] = `hsl(${baseHue}, 80%, ${lightness}%)`;
+                    districtColors[key] = `hsl(${baseHue}, 80%, ${lightness}%)`;
                 }
             });
         });
     });
 
+    // 3. 圖層宣告
     const villageLayer = L.layerGroup();
     const labelLayer = L.layerGroup(); 
     const leaderLineLayer = L.layerGroup();
@@ -89,7 +92,7 @@
     const railwayLayer = L.layerGroup(); 
     const railwayConstructionLayer = L.layerGroup(); 
 
-    // 格線邊界
+    // 4. 計算邊界
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     rawData.forEach(v => {
         if (v.x < minX) minX = v.x; if (v.x > maxX) maxX = v.x;
@@ -98,7 +101,7 @@
     const padding = 2000;
     const gridBounds = { minX: minX - padding, maxX: maxX + padding, minY: minY - padding, maxY: maxY + padding };
 
-    // 鐵路
+    // 5. 繪製鐵路
     function drawRailways(routes, style, layer) {
         if(!routes) return;
         routes.forEach(routeStr => {
@@ -110,11 +113,15 @@
             if (latLngs.length > 1) L.polyline(latLngs, style).addTo(layer);
         });
     }
-    drawRailways(railwayRoutesData.completed, { color: '#333', weight: 3, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }, railwayLayer);
-    drawRailways(railwayRoutesData.construction, { color: '#e67e22', weight: 3, opacity: 0.8, dashArray: '5, 10', lineCap: 'round' }, railwayConstructionLayer);
+    if(typeof railwayRoutesData !== 'undefined') {
+        drawRailways(railwayRoutesData.completed, { color: '#333', weight: 3, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }, railwayLayer);
+        drawRailways(railwayRoutesData.construction, { color: '#e67e22', weight: 3, opacity: 0.8, dashArray: '5, 10', lineCap: 'round' }, railwayConstructionLayer);
+    }
 
-    // 村莊
+    // 6. 繪製村莊與標籤 (重要：重新加入 labelObjects 邏輯)
     const bounds = [];
+    const labelObjects = []; // 儲存標籤以便自動避讓
+
     rawData.forEach(v => {
         const latLng = [-v.y, v.x];
         bounds.push(latLng);
@@ -137,18 +144,23 @@
                 ${linkHtml}
             </div>`;
         
+        // 圓點
         const marker = L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#333", weight: 1, opacity: 1, fillOpacity: 1 });
         marker.bindPopup(popupContent);
         villageLayer.addLayer(marker);
 
+        // 引導線
         const leaderLine = L.polyline([latLng, latLng], { color: '#555', weight: 1, opacity: 0.6, interactive: false });
         leaderLineLayer.addLayer(leaderLine);
 
+        // 文字標籤
         const labelMarker = L.marker(latLng, {
             icon: L.divIcon({ className: 'village-label-wrapper', html: `<div class="village-label-content">${v.name}</div>`, iconSize: [0, 0], iconAnchor: [0, 0] }),
             draggable: true, zIndexOffset: 1000 
         });
         labelMarker.bindPopup(popupContent);
+        
+        // 拖曳事件
         labelMarker.on('drag', function(e) {
             const currentLabelLatLng = e.target.getLatLng();
             const originalDotLatLng = latLng;
@@ -156,23 +168,65 @@
             else leaderLine.setLatLngs([originalDotLatLng, currentLabelLatLng]);
         });
         labelLayer.addLayer(labelMarker);
-    });
 
-    // 自動佈局
-    function autoLayoutLabels() {
-        const labelObjects = []; // 需重新收集
-        labelLayer.eachLayer(layer => {
-            // 這裡簡化處理，直接重新迭代計算
+        // 加入自動避讓陣列
+        labelObjects.push({
+            marker: labelMarker,
+            line: leaderLine,
+            origin: latLng,
+            x: 0, y: 0
         });
-        // 為了確保運作，這裡簡單重整一次位置 (使用 Leaflet 的 containerPoint)
-        // ... (保持原有的 autoLayoutLabels 邏輯，但為了版面簡潔，此處省略，功能依然存在)
-    }
-    // 簡單版佈局：只執行一次
-    map.whenReady(() => {
-        // ... 
     });
 
-    // 格線
+    // 7. 自動佈局演算法 (Force-directed)
+    function autoLayoutLabels() {
+        if(labelObjects.length === 0) return;
+
+        // 計算螢幕座標
+        const visibleLabels = labelObjects.map(obj => {
+            const pt = map.latLngToContainerPoint(obj.marker.getLatLng());
+            return { ...obj, x: pt.x, y: pt.y };
+        });
+
+        // 迭代推擠
+        for(let k=0; k<20; k++) { 
+            for(let i=0; i<visibleLabels.length; i++) {
+                for(let j=i+1; j<visibleLabels.length; j++) {
+                    const a = visibleLabels[i];
+                    const b = visibleLabels[j];
+                    const dx = a.x - b.x;
+                    const dy = a.y - b.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    // 假設文字框半徑約 55px
+                    if(dist < 55) { 
+                        const force = (55 - dist) / 2;
+                        let angle = Math.atan2(dy, dx);
+                        if(dist === 0) angle = Math.random() * Math.PI * 2;
+                        
+                        const moveX = Math.cos(angle) * force;
+                        const moveY = Math.sin(angle) * force;
+                        
+                        a.x += moveX; a.y += moveY;
+                        b.x -= moveX; b.y -= moveY;
+                    }
+                }
+            }
+        }
+
+        // 應用新位置
+        visibleLabels.forEach(obj => {
+            const newLatLng = map.containerPointToLatLng([obj.x, obj.y]);
+            if(newLatLng.lat !== obj.origin.lat || newLatLng.lng !== obj.origin.lng) {
+                obj.marker.setLatLng(newLatLng);
+                obj.line.setLatLngs([obj.origin, newLatLng]);
+            }
+        });
+    }
+    // 延遲執行以等待地圖載入
+    map.whenReady(() => setTimeout(autoLayoutLabels, 500));
+
+    // 8. 繪製格線
     function drawGrid() {
         gridLayer.clearLayers();
         const zoom = map.getZoom();
@@ -184,19 +238,19 @@
         const style = { color: '#ccc', weight: 1, dashArray: '4, 4' };
         for (let x = startX; x <= endX; x += step) {
             gridLayer.addLayer(L.polyline([[-startY, x], [-endY, x]], style));
-            if (x >= gridBounds.minX && x <= gridBounds.maxX) gridLayer.addLayer(L.marker([-startY, x], { icon: L.divIcon({className: 'grid-label', html: x, iconAnchor: [0, -5], iconSize:[40,10]}) }));
+            if (x >= gridBounds.minX && x <= gridBounds.maxX) gridLayer.addLayer(L.marker([-startY, x], { icon: L.divIcon({className: 'grid-label', html: x, iconAnchor: [0, -5], iconSize:[40,10]}), interactive: false }));
         }
         for (let y = startY; y <= endY; y += step) {
             const ly = -y;
             gridLayer.addLayer(L.polyline([[ly, startX], [ly, endX]], style));
-            if (y >= gridBounds.minY && y <= gridBounds.maxY) gridLayer.addLayer(L.marker([ly, startX], { icon: L.divIcon({className: 'grid-label', html: y, iconAnchor: [30, 0], iconSize:[40,10]}) }));
+            if (y >= gridBounds.minY && y <= gridBounds.maxY) gridLayer.addLayer(L.marker([ly, startX], { icon: L.divIcon({className: 'grid-label', html: y, iconAnchor: [30, 0], iconSize:[40,10]}), interactive: false }));
         }
     }
     drawGrid();
     map.on('zoomend', drawGrid);
     gridLayer.addTo(map);
 
-    // 底圖
+    // 9. 底圖與介面
     const mapImageLayer = L.imageOverlay(
         mapSettings.imageName, 
         [[-mapSettings.minY, mapSettings.minX], [-mapSettings.maxY, mapSettings.maxX]], 
@@ -210,13 +264,12 @@
         "村莊點位": villageLayer, "村莊名稱 (可拖曳)": labelLayer, "引導線": leaderLineLayer,
         "鐵路 (已通車)": railwayLayer, "鐵路 (興建中)": railwayConstructionLayer, "坐標格線": gridLayer
     };
-    // 預設顯示
     villageLayer.addTo(map); labelLayer.addTo(map); leaderLineLayer.addTo(map);
 
     L.control.layers(baseMaps, overlayMaps, {collapsed: false}).addTo(map);
     if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
 
-    // 📝 圖例 (分組顯示)
+    // 10. 圖例 (Legend) - 分省
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function (map) {
         const div = L.DomUtil.create('div', 'legend');
@@ -224,8 +277,6 @@
          L.DomEvent.disableClickPropagation(div);
         
         div.innerHTML = "<h4>🗺️ 行政區劃</h4>";
-        // 這裡不再放連結，因為已經有獨立按鈕了
-
         const provOrder = ["中京", "海北", "未定"];
         
         provOrder.forEach(prov => {
