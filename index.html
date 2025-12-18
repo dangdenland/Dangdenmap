@@ -15,12 +15,24 @@
         .legend-color { width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; border: 1px solid #666; flex-shrink: 0; }
         .legend-line { width: 20px; height: 3px; margin-right: 8px; display: inline-block; vertical-align: middle; }
         
+/* 獨立按鈕 (移到左上角，避開右側圖層選單) */
         .changelog-btn {
-            position: absolute; top: 80px; right: 10px; z-index: 1000;
-            background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
-            padding: 5px 10px; font-size: 13px; font-weight: bold; color: #333;
-            text-decoration: none; box-shadow: 0 1px 5px rgba(0,0,0,0.4);
-            transition: 0.2s; display: flex; align-items: center;
+            position: absolute; 
+            top: 80px;      /* 位於縮放按鈕下方 */
+            left: 10px;     /* 改為靠左 */
+            z-index: 1000;
+            background: white; 
+            border: 2px solid rgba(0,0,0,0.2); 
+            border-radius: 4px;
+            padding: 5px 10px; 
+            font-size: 13px; 
+            font-weight: bold; 
+            color: #333;
+            text-decoration: none; 
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            transition: 0.2s; 
+            display: flex; 
+            align-items: center;
         }
         .changelog-btn:hover { background: #f4f4f4; color: #007bff; }
 
