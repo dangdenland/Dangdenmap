@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>村莊地圖 | v9.5 穩定專業修復版</title>
+    <title>村莊地圖 | v9.6 專業精準版</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
-            --glass-bg: rgba(255, 255, 255, 0.92);
+            --glass-bg: rgba(255, 255, 255, 0.95);
             --primary-accent: #2563eb;
-            --sidebar-w: 200px;
+            --sidebar-w: 230px; /* 寬度微調以容納更長的圖例 */
         }
 
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Inter', "Microsoft JhengHei", sans-serif; background: #ffffff; overflow: hidden; }
@@ -42,31 +42,32 @@
         .scroll-area::-webkit-scrollbar-thumb { background: #cbd5e1; }
 
         .section-label { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 800; margin: 8px 0 6px 0; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 3px; }
-        .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 12px; color: #1e293b; }
-        .legend-dot { width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; flex-shrink: 0; }
-        .prov-name { font-weight: 800; color: var(--primary-accent); margin: 10px 0 4px 0; font-size: 12px; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; color: #1e293b; line-height: 1.2; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.1); }
+        .prov-name { font-weight: 800; color: var(--primary-accent); margin: 12px 0 4px 0; font-size: 13px; }
 
         /* 圖層控制選單 */
         .leaflet-control-layers { border: none !important; background: transparent !important; box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
         .leaflet-control-layers-list { font-size: 12px; }
 
-        /* 名稱標籤優化 */
+        /* 名稱標籤：修正為正中心對齊 */
         .v-label-wrapper { 
             width: 0 !important; height: 0 !important; 
-            pointer-events: none !important; /* 讓滑鼠可以點擊到下方的村莊點 */
+            pointer-events: none !important; 
         }
         .v-label-box {
             position: absolute;
-            transform: translate(-50%, -30px); /* 向上偏移更多，防止蓋住圓點 */
+            /* 使用 translate(-50%, -50%) 配合座標偏移，確保指標線連到正中心 */
+            transform: translate(-50%, -50%); 
             background: rgba(255, 255, 255, 0.9); 
-            padding: 2px 7px; 
+            padding: 3px 8px; 
             border-radius: 4px; 
             border: 1px solid #334155;
             font-size: 11px; font-weight: bold; color: #0f172a; white-space: nowrap;
-            box-shadow: 2px 2px 4px rgba(0,0,0,0.1); 
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.12); 
             cursor: move;
-            pointer-events: auto; /* 標籤本身恢復可拖拽 */
-            outline: 2px solid rgba(255,255,255,0.5); /* 增加重疊時的可讀性 */
+            pointer-events: auto;
+            outline: 2px solid rgba(255,255,255,0.6);
         }
 
         /* Popup 樣式 */
@@ -88,7 +89,7 @@
 <div class="floating-panel">
     <div class="card">
         <h1>村莊導覽</h1>
-        <div id="version-display" class="version-info">載入時間中...</div>
+        <div id="version-display" class="version-info">載入數據中...</div>
         <a href="changelog.html" target="_blank" class="btn-modern">📜 更新日誌</a>
     </div>
 
@@ -98,7 +99,7 @@
     </div>
 
     <div class="card scroll-card">
-        <div class="section-label">行政區劃</div>
+        <div class="section-label">行政區劃詳解</div>
         <div class="scroll-area" id="legend-target"></div>
     </div>
 </div>
@@ -127,7 +128,7 @@
     const railLayer = L.layerGroup().addTo(map);
     const gridLayer = L.layerGroup().addTo(map);
 
-    // --- [2] 行政區與顏色處理 (修正後的四層循環) ---
+    // --- [2] 行政區與顏色處理 ---
     const coordMap = {};
     const hierarchy = {};
 
@@ -148,7 +149,7 @@
                 const hue = (typeof countyHues !== 'undefined' && countyHues[county] !== undefined) ? countyHues[county] : 200;
                 dists.forEach((d, i) => {
                     const l = dists.length > 1 ? (45 + (i / (dists.length-1)) * 25) : 55;
-                    districtColors[county + "-" + d] = (hue === -1) ? "#94a3b8" : `hsl(${hue}, 65%, ${l}%)`;
+                    districtColors[`${county}-${d}`] = (hue === -1) ? "#94a3b8" : `hsl(${hue}, 65%, ${l}%)`;
                 });
             });
         });
@@ -169,11 +170,11 @@
         }
     }
 
-    // --- [4] 繪製村莊、標籤與中心黏貼線 ---
+    // --- [4] 繪製村莊、標籤與連線 ---
     vData.forEach(v => {
         const origin = [-v.y, v.x];
         const distName = v.dist || "直轄";
-        const color = districtColors[v.county + "-" + distName] || "#94a3b8";
+        const color = districtColors[`${v.county}-${distName}`] || "#94a3b8";
         
         const popupContent = `
             <div class="custom-popup">
@@ -187,27 +188,33 @@
                 ${v.mapUrl ? `<a href="${v.mapUrl}" target="_blank" class="popup-link">進入村莊地圖</a>` : ''}
             </div>`;
 
-        // 村莊圓點
+        // 1. 村莊點
         L.circleMarker(origin, { radius: 5, fillColor: color, color: "white", weight: 2, fillOpacity: 1 }).bindPopup(popupContent).addTo(villageLayer);
 
-        // 指標線
-        const line = L.polyline([origin, origin], { color: '#475569', weight: 1.2, opacity: 0, dashArray: '4, 4' }).addTo(lineLayer);
-
-        // 名稱標籤
-        const label = L.marker(origin, {
+        // 2. 名稱標籤 (預設位置稍微上移避免重疊圓點)
+        const initialLabelPos = [origin[0] + 35, origin[1]]; 
+        const label = L.marker(initialLabelPos, {
             draggable: true,
-            icon: L.divIcon({ className: 'v-label-wrapper', html: `<div class="v-label-box">${v.name}</div>`, iconAnchor: [0, 0] })
+            icon: L.divIcon({ 
+                className: 'v-label-wrapper', 
+                html: `<div class="v-label-box">${v.name}</div>`, 
+                iconAnchor: [0, 0] 
+            })
         }).bindPopup(popupContent).addTo(labelLayer);
 
+        // 3. 指標線 (初始連線)
+        const line = L.polyline([origin, initialLabelPos], { color: '#475569', weight: 1.2, opacity: 0.6, dashArray: '4, 4' }).addTo(lineLayer);
+
+        // 4. 拖拽監聽：確保連線連到標籤的正中心
         label.on('drag', e => {
             const newPos = e.target.getLatLng();
             line.setLatLngs([origin, newPos]);
             const dist = Math.sqrt(Math.pow(newPos.lat - origin[0], 2) + Math.pow(newPos.lng - origin[1], 2));
-            line.setStyle({ opacity: dist > 15 ? 0.7 : 0 });
+            line.setStyle({ opacity: dist > 10 ? 0.7 : 0 }); // 距離太近則隱藏線
         });
     });
 
-    // 鐵路加載
+    // 鐵路路線
     if (typeof railwayRoutesData !== 'undefined') {
         const drawR = (routes, style) => {
             if (!routes) return;
@@ -220,7 +227,7 @@
         drawR(railwayRoutesData.construction, { color: "#f59e0b", weight: 2.5, opacity: 0.45, dashArray: "5, 5" });
     }
 
-    // --- [5] UI 初始化 (修正圖例生成) ---
+    // --- [5] UI 初始化 (圖例顯示 府·縣·郡) ---
     const layers = L.control.layers(
         { "空白地圖": blankLayer, "衛星地形": terrainLayer },
         { "村莊點位": villageLayer, "名稱標籤": labelLayer, "指標連線": lineLayer, "鐵路路線": railLayer, "座標格線": gridLayer },
@@ -232,13 +239,14 @@
     Object.keys(hierarchy).forEach(prov => {
         legHtml += `<div class="prov-name">${prov}省</div>`;
         Object.keys(hierarchy[prov]).forEach(pref => {
-            legHtml += `<div style="font-size:11px; color:#64748b; margin-left:5px; font-weight:bold; margin-top:5px;">${pref}</div>`;
+            const prefStr = pref.includes("直轄") ? pref : pref + "府";
             Object.keys(hierarchy[prov][pref]).forEach(county => {
                 hierarchy[prov][pref][county].forEach(dist => {
-                    const color = districtColors[county + "-" + dist];
-                    legHtml += `<div class="legend-item" style="margin-left:12px; margin-top:2px;">
-                        <div class="legend-dot" style="background:${color}; border:1px solid rgba(0,0,0,0.1)"></div>
-                        ${county} · ${dist==='直轄'?'直轄':dist+'郡'}
+                    const color = districtColors[`${county}-${dist}`];
+                    const distStr = dist === '直轄' ? '直轄' : dist + '郡';
+                    legHtml += `<div class="legend-item" style="margin-left:8px;">
+                        <div class="legend-dot" style="background:${color}"></div>
+                        ${prefStr} · ${county}縣 · ${distStr}
                     </div>`;
                 });
             });
@@ -246,7 +254,7 @@
     });
     document.getElementById('legend-target').innerHTML = legHtml;
 
-    // --- [6] 啟動與定位 ---
+    // --- [6] 啟動 ---
     map.on('zoomend', drawGrid);
     if (vData.length > 0) {
         const group = new L.featureGroup(vData.map(v => L.marker([-v.y, v.x])));
