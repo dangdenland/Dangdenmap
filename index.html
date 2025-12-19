@@ -57,13 +57,14 @@
 
         /* 名稱標籤 (正中心對齊) */
         .v-label-wrapper { width: 0 !important; height: 0 !important; }
-        .v-label-box {
-            position: absolute;
-            transform: translate(-50%, -50%); /* 核心：將標籤中心對準座標點 */
-            background: white; padding: 2px 7px; border-radius: 4px; border: 1px solid #334155;
-            font-size: 11px; font-weight: bold; color: #0f172a; white-space: nowrap;
-            box-shadow: 2px 2px 0px rgba(0,0,0,0.1); cursor: move;
-        }
+.v-label-box {
+    position: absolute;
+    /* 修改 transform：讓標籤底部距離原點 12px，避免蓋住村莊圓點 */
+    transform: translate(-50%, -24px); 
+    background: white; padding: 2px 7px; border-radius: 4px; border: 1px solid #334155;
+    font-size: 11px; font-weight: bold; color: #0f172a; white-space: nowrap;
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.1); cursor: move;
+}
 
         /* Popup 樣式優化 (移除 Emoji) */
         .popup-title { font-size: 15px; font-weight: 800; color: #0f172a; }
@@ -73,6 +74,21 @@
 
         .grid-label { font-size: 10px; color: #94a3b8; font-family: monospace; }
         @media print { .floating-panel { display: none; } }
+
+/* Popup 整體對齊修復 */
+.custom-popup { text-align: center; padding: 4px; min-width: 140px; }
+.popup-title { font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 2px; }
+.popup-en { font-size: 11px; color: #94a3b8; font-style: italic; margin-bottom: 8px; display: block; }
+.popup-geo-table { 
+    width: 100%; border-top: 1px solid #eee; padding-top: 8px; margin-bottom: 8px;
+    font-size: 12px; color: #475569; line-height: 1.6;
+}
+.popup-coords { 
+    display: inline-block; font-family: monospace; background: #f8fafc; 
+    padding: 3px 8px; border-radius: 4px; font-size: 11px; color: #64748b; 
+    border: 1px solid #e2e8f0;
+}
+        
     </style>
 </head>
 <body>
@@ -124,12 +140,15 @@
     // --- [2] 行政區與顏色處理 ---
     const coordMap = {};
     const hierarchy = {};
-    vData.forEach(v => {
-        coordMap[v.name] = [-v.y, v.x];
-        if (!hierarchy[v.prov]) hierarchy[v.prov] = {};
-        if (!hierarchy[v.prov][v.county]) hierarchy[v.prov][v.county] = new Set();
-        hierarchy[v.prov][v.county].add(v.dist || "直轄");
-    });
+// 在 vData.forEach 循環中調整層級
+vData.forEach(v => {
+    coordMap[v.name] = [-v.y, v.x];
+    if (!hierarchy[v.prov]) hierarchy[v.prov] = {};
+    const prefName = v.pref || "直轄府"; 
+    if (!hierarchy[v.prov][prefName]) hierarchy[v.prov][prefName] = {};
+    if (!hierarchy[v.prov][prefName][v.county]) hierarchy[v.prov][prefName][v.county] = new Set();
+    hierarchy[v.prov][prefName][v.county].add(v.dist || "直轄");
+});
 
     const districtColors = {};
     Object.keys(hierarchy).forEach(prov => {
@@ -166,15 +185,16 @@
         
         // Popup 格式化：行政區劃無 Emoji，手動加上「郡」字
         const popupContent = `
-            <div class="custom-popup">
-                <div class="popup-title">${v.name} <small style="color:#64748b; font-weight:normal; font-style:italic;">${v.en || ""}</small></div>
-                <div class="popup-geo">
-                    ${v.prov}省 · ${v.pref || ""}府<br>
-                    ${v.county}縣 · ${v.dist ? v.dist + '郡' : '直轄'}
-                </div>
-                <code class="popup-coords">X: ${v.x}, Z: ${v.y}</code>
-                ${v.mapUrl ? `<a href="${v.mapUrl}" target="_blank" class="popup-link">檢視村內鐵道圖</a>` : ''}
-            </div>`;
+    <div class="custom-popup">
+        <div class="popup-title">${v.name}</div>
+        <span class="popup-en">${v.en || ""}</span>
+        <div class="popup-geo-table">
+            ${v.prov}省 · ${v.pref || "直轄"}府<br>
+            ${v.county}縣 · ${v.dist ? v.dist + '郡' : '直轄'}
+        </div>
+        <div class="popup-coords">X: ${v.x} / Z: ${v.y}</div>
+        ${v.mapUrl ? `<a href="${v.mapUrl}" target="_blank" class="popup-link">進入村莊地圖</a>` : ''}
+    </div>`;
 
         // 村莊圓點
         L.circleMarker(origin, { radius: 5, fillColor: color, color: "white", weight: 2, fillOpacity: 1 }).bindPopup(popupContent).addTo(villageLayer);
@@ -217,17 +237,23 @@
     ).addTo(map);
     document.getElementById('layer-control-target').appendChild(layers.getContainer());
 
-    let legHtml = "";
-    Object.keys(hierarchy).forEach(prov => {
-        legHtml += `<div class="prov-name">${prov}省</div>`;
-        Object.keys(hierarchy[prov]).forEach(county => {
-            hierarchy[prov][county].forEach(dist => {
+let legHtml = "";
+Object.keys(hierarchy).forEach(prov => {
+    legHtml += `<div class="prov-name">${prov}省</div>`;
+    Object.keys(hierarchy[prov]).forEach(pref => {
+        legHtml += `<div style="font-size:11px; color:#64748b; margin-left:5px; font-weight:bold;">${pref}</div>`;
+        Object.keys(hierarchy[prov][pref]).forEach(county => {
+            hierarchy[prov][pref][county].forEach(dist => {
                 const color = districtColors[county + "-" + dist];
-                legHtml += `<div class="legend-item"><div class="legend-dot" style="background:${color}"></div>${county}縣 · ${dist==='直轄'?'直轄':dist+'郡'}</div>`;
+                legHtml += `<div class="legend-item" style="margin-left:10px;">
+                    <div class="legend-dot" style="background:${color}"></div>
+                    ${county}縣 · ${dist==='直轄'?'直轄':dist+'郡'}
+                </div>`;
             });
         });
     });
-    document.getElementById('legend-target').innerHTML = legHtml;
+});
+document.getElementById('legend-target').innerHTML = legHtml;
 
     // --- [6] 啟動與時間偵測 ---
     map.on('zoomend', drawGrid);
