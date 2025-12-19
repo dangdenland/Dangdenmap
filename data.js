@@ -20,7 +20,7 @@ var rawData = [
     { id: 3, name: "中島", en: "Tiong-to", abbr: "中", x: -1307, y: -343, h: 66, prov: "中京", pref: "大成", county: "澳口", dist: "西澳" },
     { id: 4, name: "中澳", en: "Tiong-o", abbr: "澳", x: -1531, y: -1010, h: 73, prov: "中京", pref: "大成", county: "澳口", dist: "西澳" },
     { id: 43, name: "北汕", en: "Pak-suann", abbr: "北", x: -1905, y: -1011, h: 69, prov: "中京", pref: "大成", county: "澳口", dist: "西澳" },
-    { id: 44, name: "頂崁", en: "Ting-kham", abbr: "頂", x: 1872, y: -1779, h: 85, prov: "中京", pref: "大成", county: "澳口", dist: "西澳" },
+    { id: 44, name: "頂崁", en: "Ting-kham", abbr: "頂", x: 1872, y: -1779, h: 85, prov: "中京", pref: "東埔", county: "外埔", dist: "崎頂" },
     { id: 18, name: "中沙", en: "Tiong-sua", abbr: "汕", x: 206, y: -1529, h: 75, prov: "中京", pref: "大成", county: "澳口", dist: "海陽" },
     { id: 19, name: "船頭", en: "Tsun-thau", abbr: "帆", x: 523, y: -1691, h: 62, prov: "中京", pref: "大成", county: "澳口", dist: "海陽" },
     { id: 27, name: "山埔", en: "Suann-poo", abbr: "莆", x: -82, y: -1005, h: 68, prov: "中京", pref: "大成", county: "澳口", dist: "海陽" },
