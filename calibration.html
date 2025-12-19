@@ -2,312 +2,115 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地圖校正工具 v5.4 (絲滑縮放版)</title>
+    <title>地圖精準校準工具 v6.0</title>
     <style>
-        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background: #222; color: #fff; overflow: hidden; }
-        
-        /* 介面佈局 */
-        #controls {
-            position: fixed; top: 10px; right: 10px; width: 280px;
-            background: rgba(0,0,0,0.9); border: 2px solid #00ff00;
-            padding: 15px; border-radius: 8px; z-index: 9999;
-            box-shadow: 0 0 20px rgba(0,0,0,0.8);
-            user-select: none; /* 防止選取文字 */
-        }
-        
-        /* 地圖視窗 */
-        #viewport {
-            width: 100vw; height: 100vh;
-            overflow: hidden; /* 隱藏捲軸 */
-            background: #333;
-            cursor: grab; /* 手掌游標 */
-            position: relative;
-        }
-        #viewport.grabbing { cursor: grabbing; } /* 抓取時的游標 */
-
-        /* 圖片本體 (透過 CSS Transform 控制) */
-        #target-img {
-            transform-origin: 0 0; /* 變形原點設為左上 */
-            pointer-events: none; /* 讓滑鼠事件穿透到容器處理 */
-            position: absolute; top: 0; left: 0;
-        }
-
-        /* UI 元件 */
-        button { padding: 10px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 10px; border-radius: 5px; }
-        .btn-green { background: #28a745; color: white; border: none; }
-        
-        #instruction { margin: 10px 0; font-weight:bold; color: #4db8ff; font-size: 14px; }
-        #status-log { color: #ffff00; font-family: monospace; margin-top: 10px; font-size: 12px; white-space: pre-wrap; border-top: 1px solid #555; padding-top: 5px;}
-
-        /* 標記點 */
-        .marker {
-            position: absolute; width: 14px; height: 14px; background: rgba(255, 0, 0, 0.9);
-            border: 2px solid white; border-radius: 50%; 
-            transform: translate(-50%, -50%); /* 居中 */
-            pointer-events: none; z-index: 1000;
-            box-shadow: 0 0 5px rgba(0,0,0,0.5);
-        }
-        .marker.p2 { background: rgba(0, 100, 255, 0.9); }
-
-        /* 左下角提示 */
-        .zoom-info {
-            position: fixed; bottom: 20px; left: 20px; 
-            background: rgba(0,0,0,0.6); padding: 5px 10px; 
-            border-radius: 4px; font-size: 12px; pointer-events: none;
-        }
+        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; }
+        #controls { position: fixed; top: 10px; left: 10px; width: 320px; background: rgba(0,0,0,0.9); padding: 20px; border-radius: 10px; border: 1px solid #444; z-index: 1000; }
+        #viewport { width: 100vw; height: 100vh; cursor: crosshair; position: relative; overflow: hidden; }
+        #canvas-container { position: absolute; transform-origin: 0 0; }
+        img { display: block; user-select: none; pointer-events: none; }
+        .marker { position: absolute; width: 12px; height: 12px; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); }
+        .m1 { background: #ff4444; box-shadow: 0 0 10px #ff4444; }
+        .m2 { background: #4488ff; box-shadow: 0 0 10px #4488ff; }
+        input { background: #333; color: #0f0; border: 1px solid #555; padding: 5px; width: 80px; }
+        button { background: #28a745; color: white; border: none; padding: 10px; width: 100%; cursor: pointer; margin-top: 10px; border-radius: 5px; font-weight: bold; }
+        pre { background: #000; padding: 10px; font-size: 11px; color: #0f0; border: 1px dashed #555; white-space: pre-wrap; }
     </style>
 </head>
 <body>
 
 <div id="controls">
-    <h3 style="margin:0 0 10px 0;">🛠️ 校正 v5.4 (絲滑版)</h3>
-    <input type="file" id="fileInput" accept="image/*" onchange="loadFile(this)">
-    <div id="instruction">步驟 1: 請選擇圖片</div>
-    <button id="copyBtn" class="btn-green" style="display:none;" onclick="copyCode()">📋 複製代碼</button>
-    <div id="status-log">等待圖片...</div>
-    <button onclick="resetView()" style="background:#555; margin-top:15px; font-size:12px;">🔄 重置視角 (Fit)</button>
+    <h3>🗺️ 地圖校準 v6.0</h3>
+    <input type="file" id="fileInput" accept="image/*" style="width:100%">
+    <p style="font-size:12px; color:#aaa">1. 輸入基準點遊戲座標：</p>
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:5px; font-size:12px">
+        <span>P1(紅):</span><input type="number" id="p1x" value="6259"> <input type="number" id="p1y" value="-9041">
+        <span>P2(藍):</span><input type="number" id="p2x" value="-1531"> <input type="number" id="p2y" value="-1010">
+    </div>
+    <div id="msg" style="color:yellow; margin:10px 0; font-weight:bold">請載入地圖圖片</div>
+    <div id="result" style="display:none">
+        <pre id="output"></pre>
+        <button onclick="copyCode()">複製代碼</button>
+    </div>
+    <button onclick="location.reload()" style="background:#666">重置</button>
 </div>
 
 <div id="viewport">
-    <img id="target-img" alt="" />
-</div>
-
-<div class="zoom-info">
-    滑鼠滾輪：縮放 (游標中心)<br>
-    滑鼠左鍵：拖曳平移 / 點擊標記
+    <div id="canvas-container">
+        <img id="mapImg">
+        <div id="markers"></div>
+    </div>
 </div>
 
 <script>
-    // ============================
-    // 1. 基準點座標 (固定)
-    // ============================
-    const pointA = { name: "灣內", gameX: 6259, gameY: -9041 };
-    const pointB = { name: "中澳", gameX: -1531, gameY: -1010 };
+    const state = { scale: 1, x: 0, y: 0, step: 1, imgW: 0, imgH: 0 };
+    const p1 = { x: 0, y: 0 }, p2 = { x: 0, y: 0 };
+    const container = document.getElementById('canvas-container');
+    const img = document.getElementById('mapImg');
 
-    // 狀態變數
-    let step = 0;
-    let imgNaturalWidth = 0, imgNaturalHeight = 0;
-    let p1_pixel = null, p2_pixel = null;
-    let currentFileName = "map_bg.png";
-
-    // 視圖變換變數 (Transform)
-    let state = {
-        scale: 1,
-        panning: false,
-        pointX: 0, // 偏移量 X
-        pointY: 0, // 偏移量 Y
-        startX: 0,
-        startY: 0
-    }
-
-    const imgEl = document.getElementById('target-img');
-    const viewport = document.getElementById('viewport');
-    const logEl = document.getElementById('status-log');
-    const instruct = document.getElementById('instruction');
-
-    function log(msg) { logEl.innerText = msg; }
-
-    // 2. 檔案讀取
-    function loadFile(input) {
-        if (input.files && input.files[0]) {
-            currentFileName = input.files[0].name;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imgEl.src = e.target.result;
-                imgEl.onload = function() {
-                    imgNaturalWidth = this.naturalWidth;
-                    imgNaturalHeight = this.naturalHeight;
-                    log(`圖片載入: ${imgNaturalWidth}x${imgNaturalHeight}`);
-                    
-                    // 重置
-                    step = 1;
-                    p1_pixel = null; p2_pixel = null;
-                    document.querySelectorAll('.marker').forEach(e => e.remove());
-                    document.getElementById('copyBtn').style.display = 'none';
-                    
-                    instruct.innerText = "步驟 2: 點擊「灣內」(右上)";
-                    instruct.style.color = "#ff4444"; 
-                    
-                    resetView(); // 自動適應視窗
-                };
+    document.getElementById('fileInput').onchange = (e) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            img.src = ev.target.result;
+            img.onload = () => {
+                state.imgW = img.naturalWidth; state.imgH = img.naturalHeight;
+                document.getElementById('msg').innerText = "請點擊紅點位置 (灣內)";
+                resetView();
             };
-            reader.readAsDataURL(input.files[0]);
-        }
-    }
-
-    // 3. 視圖控制核心 (Pan & Zoom Logic)
-    function setTransform() {
-        imgEl.style.transform = `translate(${state.pointX}px, ${state.pointY}px) scale(${state.scale})`;
-    }
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    };
 
     function resetView() {
-        if (!imgNaturalWidth) return;
-        // 自動縮放到適合視窗大小
-        const scaleW = viewport.clientWidth / imgNaturalWidth;
-        const scaleH = viewport.clientHeight / imgNaturalHeight;
-        state.scale = Math.min(scaleW, scaleH) * 0.9;
-        state.pointX = (viewport.clientWidth - imgNaturalWidth * state.scale) / 2;
-        state.pointY = (viewport.clientHeight - imgNaturalHeight * state.scale) / 2;
-        setTransform();
+        state.scale = Math.min(window.innerWidth/state.imgW, window.innerHeight/state.imgH)*0.8;
+        state.x = (window.innerWidth - state.imgW*state.scale)/2;
+        state.y = (window.innerHeight - state.imgH*state.scale)/2;
+        container.style.transform = `translate(${state.x}px,${state.y}px) scale(${state.scale})`;
     }
 
-    // 滾輪縮放 (Zoom)
-    viewport.onwheel = function (e) {
+    document.getElementById('viewport').onwheel = (e) => {
         e.preventDefault();
-        const xs = (e.clientX - state.pointX) / state.scale;
-        const ys = (e.clientY - state.pointY) / state.scale;
-        
-        const delta = -e.deltaY;
-        const oldScale = state.scale;
-        
-        if (delta > 0) state.scale *= 1.1; // 放大
-        else state.scale /= 1.1; // 縮小
-
-        // 調整偏移量，讓滑鼠指的地方保持不動
-        state.pointX = e.clientX - xs * state.scale;
-        state.pointY = e.clientY - ys * state.scale;
-
-        setTransform();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const mx = e.clientX, my = e.clientY;
+        const ix = (mx - state.x)/state.scale, iy = (my - state.y)/state.scale;
+        state.scale *= delta;
+        state.x = mx - ix*state.scale; state.y = my - iy*state.scale;
+        container.style.transform = `translate(${state.x}px,${state.y}px) scale(${state.scale})`;
     };
 
-    // 拖曳平移 (Pan)
-    let isClick = true; // 判斷是點擊還是拖曳
-
-    viewport.onmousedown = function (e) {
-        if (e.button !== 0) return; // 只接受左鍵
-        e.preventDefault();
-        state.startX = e.clientX - state.pointX;
-        state.startY = e.clientY - state.pointY;
-        state.panning = true;
-        isClick = true; // 假設是點擊
-        viewport.classList.add('grabbing');
+    let isDrag = false, sx, sy, moved = false;
+    document.getElementById('viewport').onmousedown = (e) => { isDrag = true; sx = e.clientX; sy = e.clientY; moved = false; };
+    window.onmousemove = (e) => { if(!isDrag) return; state.x += e.clientX-sx; state.y += e.clientY-sy; sx = e.clientX; sy = e.clientY; moved = true; container.style.transform = `translate(${state.x}px,${state.y}px) scale(${state.scale})`; };
+    window.onmouseup = (e) => {
+        if(!moved && isDrag && state.imgW > 0 && state.step <= 2) {
+            const px = (e.clientX - state.x)/state.scale, py = (e.clientY - state.y)/state.scale;
+            const dot = document.createElement('div');
+            dot.className = 'marker m' + state.step; dot.style.left = px + 'px'; dot.style.top = py + 'px';
+            document.getElementById('markers').appendChild(dot);
+            if(state.step === 1) { p1.x = px; p1.y = py; state.step = 2; document.getElementById('msg').innerText = "請點擊藍點位置 (中澳)"; }
+            else { p2.x = px; p2.y = py; state.step = 3; calculate(); }
+        }
+        isDrag = false;
     };
 
-    viewport.onmouseup = function (e) {
-        e.preventDefault();
-        state.panning = false;
-        viewport.classList.remove('grabbing');
-        
-        // 如果是點擊操作 (沒有大幅移動)，則觸發標記邏輯
-        if (isClick && step > 0) {
-            handleMapClick(e.clientX, e.clientY);
-        }
-    };
-
-    viewport.onmousemove = function (e) {
-        e.preventDefault();
-        if (!state.panning) return;
-        
-        const newX = e.clientX - state.startX;
-        const newY = e.clientY - state.startY;
-
-        // 如果移動超過 5px，就視為拖曳，不是點擊
-        if (Math.abs(newX - state.pointX) > 5 || Math.abs(newY - state.pointY) > 5) {
-            isClick = false;
-        }
-
-        state.pointX = newX;
-        state.pointY = newY;
-        setTransform();
-    };
-
-    // 4. 點擊標記邏輯
-    function handleMapClick(clientX, clientY) {
-        // 逆向算出圖片上的原始像素座標
-        // Formula: (ScreenPos - Translate) / Scale
-        const pixelX = (clientX - state.pointX) / state.scale;
-        const pixelY = (clientY - state.pointY) / state.scale;
-
-        // 確保點擊在圖片範圍內
-        if (pixelX < 0 || pixelX > imgNaturalWidth || pixelY < 0 || pixelY > imgNaturalHeight) {
-            return;
-        }
-
-        log(`點擊 P${step}: ${Math.round(pixelX)}, ${Math.round(pixelY)}`);
-        createMarker(pixelX, pixelY, step); // 標記位置要根據圖片座標系
-
-        if (step === 1) {
-            p1_pixel = { x: pixelX, y: pixelY };
-            step = 2;
-            instruct.innerText = "步驟 3: 點擊「中澳」(左下)";
-            instruct.style.color = "#4488ff"; 
-        } else if (step === 2) {
-            p2_pixel = { x: pixelX, y: pixelY };
-            step = 3;
-            instruct.innerText = "✅ 完成！請複製代碼";
-            instruct.style.color = "#00ff00";
-            document.getElementById('copyBtn').style.display = 'block';
-            calculate();
-        }
-    }
-
-    // 建立標記點 (這是貼在 container 內部的，位置會隨圖片 transform 而變動嗎? 不會)
-    // 修正：我們直接把 marker 貼在 body 上，只是為了顯示當下點擊位置
-    // 但更好的做法是重新計算 CSS transform 的 marker，這裡為了簡單，我們畫一個暫時的 marker 貼在圖片上
-    // 不對，貼在圖片上最好 (child of img container won't work easily with img tag)
-    // 簡單解法：紀錄點擊的 transform 狀態，或是每次 render 時更新 marker。
-    // 極簡解法：只要算出結果就好，標記點不需要跟著縮放跑，點完確認有點到就好。
-    function createMarker(px, py, stepIdx) {
-        // 這裡我們需要算出當下的螢幕座標來顯示 marker
-        const screenX = px * state.scale + state.pointX;
-        const screenY = py * state.scale + state.pointY;
-
-        const marker = document.createElement('div');
-        marker.className = stepIdx === 1 ? 'marker' : 'marker p2';
-        
-        // 為了讓 marker 跟隨縮放，我們把它設為絕對定位，並掛載到 viewport
-        // 但因為我們自己實作 transform，這裡我們簡單做：只在當下顯示點擊位置
-        // 如果使用者縮放，標記會跑掉 (視覺上)，但不影響計算結果。
-        // 為了避免困惑，我們讓標記點「短暫顯示」或直接用固定 overlay 畫布
-        
-        // **修正策略**：建立一個跟隨圖片 transform 的 div 容器，把 img 和 markers 都放在裡面
-        // 但為了不改動太多 HTML，這裡我們只顯示「靜態」標記，並提示使用者「已記錄」
-        
-        // 這裡改用簡單的視覺回饋，在滑鼠位置閃一下
-        const dot = document.createElement('div');
-        dot.className = stepIdx === 1 ? 'marker' : 'marker p2';
-        dot.style.left = screenX + 'px';
-        dot.style.top = screenY + 'px';
-        document.body.appendChild(dot);
-        
-        // 2秒後消失，避免縮放後位置對不上的視覺干擾
-        setTimeout(() => dot.remove(), 2000);
-    }
-
-    // 5. 逆推計算
     function calculate() {
-        const scaleX = (pointB.gameX - pointA.gameX) / (p2_pixel.x - p1_pixel.x);
-        // Y 軸方向：灣內(上 -9041) -> 中澳(下 -1010)，數值變大
-        // 像素 Y：灣內(小) -> 中澳(大)，數值變大
-        // 所以 scaleY 應該是正的
-        const scaleY = (pointB.gameY - pointA.gameY) / (p2_pixel.y - p1_pixel.y);
-
-        const minX = pointA.gameX - (p1_pixel.x * scaleX);
-        const minY = pointA.gameY - (p1_pixel.y * scaleY);
-        const maxX = minX + (imgNaturalWidth * scaleX);
-        const maxY = minY + (imgNaturalHeight * scaleY);
-
-        window.resultCode = `// ==========================================
-// 🌍 地圖設定檔 (v5.4 絲滑校正)
-// ==========================================
-const mapSettings = {
-    imageName: "${currentFileName}",
-    
+        const g1 = { x: parseFloat(document.getElementById('p1x').value), y: parseFloat(document.getElementById('p1y').value) };
+        const g2 = { x: parseFloat(document.getElementById('p2x').value), y: parseFloat(document.getElementById('p2y').value) };
+        const sx = (g2.x - g1.x) / (p2.x - p1.x), sy = (g2.y - g1.y) / (p2.y - p1.y);
+        const minX = g1.x - p1.x * sx, minY = g1.y - p1.y * sy;
+        const code = `const mapSettings = {
+    imageName: "map_bg.jpg",
     minX: ${Math.round(minX)},
-    maxX: ${Math.round(maxX)},
+    maxX: ${Math.round(minX + state.imgW * sx)},
     minY: ${Math.round(minY)},
-    maxY: ${Math.round(maxY)}
+    maxY: ${Math.round(minY + state.imgH * sy)}
 };`;
-        log("計算完畢！");
+        document.getElementById('output').innerText = code;
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('msg').innerText = "✅ 校準完成";
     }
 
-    function copyCode() {
-        navigator.clipboard.writeText(window.resultCode).then(() => {
-            alert("✅ 設定碼已複製！\n請貼回 config.js 覆蓋。");
-        });
-    }
+    function copyCode() { navigator.clipboard.writeText(document.getElementById('output').innerText); alert("代碼已複製"); }
 </script>
-
 </body>
 </html>
