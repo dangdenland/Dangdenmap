@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>村莊地圖 - 版本檢視版</title>
+    <title>村莊地圖 - 穩定版</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; }
-        #map { height: 100vh; width: 100vw; background-color: #f5f5f5; }
+        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background-color: #f5f5f5; }
+        #map { height: 100vh; width: 100vw; }
         
         .legend { background: rgba(255, 255, 255, 0.95); padding: 10px 15px; border-radius: 5px; border: 1px solid #bbb; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 13px; max-height: 60vh; overflow-y: auto; }
         .legend h4 { margin: 0 0 8px 0; font-size: 15px; border-bottom: 2px solid #666; padding-bottom: 5px; }
@@ -21,20 +21,19 @@
             text-decoration: none; box-shadow: 0 1px 5px rgba(0,0,0,0.4);
         }
 
-        /* 版本顯示樣式 */
         .version-badge {
             position: absolute; top: 120px; left: 10px; z-index: 1000;
             background: rgba(0, 0, 0, 0.7); color: #0f0;
             padding: 4px 8px; border-radius: 4px; font-size: 11px;
             font-family: monospace; pointer-events: none;
-            border: 1px solid rgba(0, 255, 0, 0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            border: 1px solid rgba(0, 255, 0, 0.3);
         }
 
         .grid-label { font-size: 10px; color: #888; white-space: nowrap; font-family: monospace; }
         .village-label-content { 
             position: absolute; transform: translate(-50%, -50%);
             display: inline-block; width: max-content; font-size: 12px; font-weight: bold; 
-            background-color: rgba(255,255,255,0.9); padding: 3px 7px; border: 1px solid #666; 
+            background-color: rgba(255,255,255,0.95); padding: 3px 7px; border: 1px solid #666; 
             border-radius: 4px; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); pointer-events: auto;
         }
     </style>
@@ -43,40 +42,43 @@
 
 <div id="map"></div>
 <a href="changelog.html" target="_blank" class="changelog-btn">📜 更新紀錄</a>
-<div id="version-display" class="version-badge">Ver: Loading...</div>
+<div id="version-display" class="version-badge">版本偵測中...</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="config.js"></script>
 <script src="data.js"></script>
 
 <script>
-    var safeSettings = (typeof mapSettings !== 'undefined') ? mapSettings : { version: "Unknown", imageName: "map_bg.jpg", minX: -5000, maxX: 10000, minY: -10000, maxY: 1000 };
-    var safeData = (typeof rawData !== 'undefined') ? rawData : [];
+    // 1. 初始化環境變數
+    const safeSettings = (typeof mapSettings !== 'undefined') ? mapSettings : { imageName: "map_bg.jpg", minX: -2560, maxX: 8928, minY: -9728, maxY: 880 };
+    const safeData = (typeof rawData !== 'undefined') ? rawData : [];
 
-    // 顯示版本號
-    document.getElementById('version-display').innerText = "Ver: " + (safeSettings.version || "未設定");
+    // 2. 初始化地圖
+    const map = L.map('map', { 
+        crs: L.CRS.Simple, 
+        minZoom: -6, 
+        maxZoom: 4, 
+        zoomSnap: 0.1, 
+        attributionControl: false 
+    });
 
-    const map = L.map('map', { crs: L.CRS.Simple, minZoom: -6, maxZoom: 4, zoomSnap: 0.1, attributionControl: false });
-    
-    // 圖層定義
+    // 3. 定義圖層
     const villageLayer = L.layerGroup().addTo(map);
     const labelLayer = L.layerGroup().addTo(map); 
     const leaderLineLayer = L.layerGroup().addTo(map);
     const gridLayer = L.layerGroup().addTo(map);
-    const railwayLayer = L.layerGroup().addTo(map);
+    const railwayLayer = L.layerGroup();
     const railwayConstructionLayer = L.layerGroup();
     const blankLayer = L.layerGroup().addTo(map); // 預設空白背景
 
-    const coordMap = {};
-    safeData.forEach(v => { coordMap[v.name] = [-v.y, v.x]; });
-
-    // 行政區劃顏色與資料處理 (省略重複邏輯，保持與前版一致)
+    // 4. 計算行政區顏色 (依據 data.js)
     const hierarchy = {};
     safeData.forEach(v => {
         if (!hierarchy[v.prov]) hierarchy[v.prov] = {};
         if (!hierarchy[v.prov][v.county]) hierarchy[v.prov][v.county] = new Set();
         hierarchy[v.prov][v.county].add(v.dist || "直轄");
     });
+    
     const districtColors = {};
     Object.keys(hierarchy).forEach(prov => {
         Object.keys(hierarchy[prov]).forEach(county => {
@@ -89,21 +91,24 @@
         });
     });
 
-    // 建立村莊與標籤邏輯
+    // 5. 繪製村莊與標籤
     const labelObjects = [];
     const bounds = [];
     safeData.forEach(v => {
         const latLng = [-v.y, v.x];
         bounds.push(latLng);
-        const color = districtColors[`${v.county}-${v.dist || "直轄"}`] || "#333";
+        const distKey = v.dist || "直轄";
+        const color = districtColors[`${v.county}-${distKey}`] || "#333";
         
-        L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#000", weight: 1.5, fillOpacity: 1 }).addTo(villageLayer);
+        const popupContent = `<strong>${v.name}</strong><br>${v.prov}省 ${v.county}縣<br>座標: (${v.x}, ${v.y})`;
+        
+        L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#000", weight: 1.5, fillOpacity: 1 }).bindPopup(popupContent).addTo(villageLayer);
 
         const leaderLine = L.polyline([latLng, latLng], { color: '#666', weight: 1, opacity: 0 }).addTo(leaderLineLayer);
         const labelMarker = L.marker(latLng, {
             icon: L.divIcon({ className: 'village-label-wrapper', html: `<div class="village-label-content">${v.name}</div>`, iconSize: [0, 0] }),
             draggable: true
-        }).addTo(labelLayer);
+        }).bindPopup(popupContent).addTo(labelLayer);
         
         labelMarker.on('drag', function(e) {
             leaderLine.setLatLngs([latLng, e.target.getLatLng()]);
@@ -113,7 +118,7 @@
         labelObjects.push({ marker: labelMarker, line: leaderLine, origin: latLng });
     });
 
-    // 避讓演算法 (確保不覆蓋圓點)
+    // 6. 避讓演算法 (防止覆蓋)
     function updateLabels() {
         const currentBounds = map.getBounds();
         const visibleLabels = [];
@@ -124,60 +129,105 @@
                 visibleLabels.push({ obj, x: pt.x, y: pt.y, ox: pt.x, oy: pt.y });
             }
         });
+
         const minDist = 45, forcePush = 30; 
         for(let k=0; k<15; k++) {
             visibleLabels.forEach(a => {
                 if(a.obj.marker.isManualMoved) return;
-                const dxC = a.x - a.ox, dyC = a.y - a.oy;
-                const distC = Math.sqrt(dxC*dxC + dyC*dyC);
-                if (distC < forcePush) {
-                    a.y -= 2; // 預設往上推
-                }
+                if (Math.sqrt(Math.pow(a.x-a.ox,2)+Math.pow(a.y-a.oy,2)) < forcePush) { a.y -= 2; }
                 visibleLabels.forEach(b => {
                     if (a === b) return;
-                    const dx = a.x - b.x, dy = a.y - b.y;
-                    const d = Math.sqrt(dx*dx + dy*dy);
-                    if (d < minDist) {
-                        a.x += (dx/d)*2; a.y += (dy/d)*2;
-                    }
+                    const dx = a.x - b.x, dy = a.y - b.y, d = Math.sqrt(dx*dx + dy*dy);
+                    if (d < minDist) { a.x += (dx/d)*2; a.y += (dy/d)*2; }
                 });
             });
         }
         visibleLabels.forEach(item => {
             const newLatLng = map.containerPointToLatLng([item.x, item.y]);
             if(!item.obj.marker.isManualMoved) item.obj.marker.setLatLng(newLatLng);
-            if (map.latLngToContainerPoint(item.obj.marker.getLatLng()).distanceTo([item.ox, item.oy]) > 12) {
+            const dist = map.latLngToContainerPoint(item.obj.marker.getLatLng()).distanceTo([item.ox, item.oy]);
+            if (dist > 12) {
                 item.obj.line.setLatLngs([item.obj.origin, item.obj.marker.getLatLng()]);
                 item.obj.line.setStyle({opacity: 0.5});
             } else { item.obj.line.setStyle({opacity: 0}); }
         });
     }
 
-    // 精準格線繪製
+    // 7. 格線繪製 (水平垂直精準對齊版)
     function drawGrid() {
         gridLayer.clearLayers();
         const zoom = map.getZoom();
         let step = zoom >= 1 ? 100 : (zoom >= -1 ? 500 : 1000);
         const b = { minX: safeSettings.minX - 2000, maxX: safeSettings.maxX + 2000, minY: safeSettings.minY - 2000, maxY: safeSettings.maxY + 2000 };
-        const gridStyle = { color: '#ccc', weight: 1, dashArray: '4, 4', opacity: 0.6 };
+        const style = { color: '#ccc', weight: 1, dashArray: '4, 4', opacity: 0.6 };
+        
         for (let x = Math.floor(b.minX / step) * step; x <= b.maxX; x += step) {
-            L.polyline([[-b.minY, x], [-b.maxY, x]], gridStyle).addTo(gridLayer);
+            L.polyline([[-b.minY, x], [-b.maxY, x]], style).addTo(gridLayer);
             L.marker([-b.minY, x], { icon: L.divIcon({ className: 'grid-label', html: x, iconAnchor: [0, 15] }), interactive: false }).addTo(gridLayer);
         }
         for (let y = Math.floor(b.minY / step) * step; y <= b.maxY; y += step) {
-            L.polyline([[-y, b.minX], [-y, b.maxX]], gridStyle).addTo(gridLayer);
+            L.polyline([[-y, b.minX], [-y, b.maxX]], style).addTo(gridLayer);
             L.marker([-y, b.minX], { icon: L.divIcon({ className: 'grid-label', html: y, iconAnchor: [45, 5] }), interactive: false }).addTo(gridLayer);
         }
     }
 
-    map.on('zoomend moveend', updateLabels);
-    map.on('zoomend', drawGrid);
-    map.whenReady(() => { drawGrid(); updateLabels(); if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] }); });
-
+    // 8. 介面與初始化
     const mapImageLayer = L.imageOverlay(safeSettings.imageName, [[-safeSettings.minY, safeSettings.minX], [-safeSettings.maxY, safeSettings.maxX]], { opacity: 0.85 });
     const baseMaps = { "空白背景": blankLayer, "地形圖": mapImageLayer };
-    const overlayMaps = { "村莊點位": villageLayer, "名稱標籤": labelLayer, "格線": gridLayer, "鐵路": railwayLayer };
+    const overlayMaps = { "村莊點位": villageLayer, "名稱標籤": labelLayer, "格線": gridLayer };
     L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
+    map.on('zoomend moveend', updateLabels);
+    map.on('zoomend', drawGrid);
+
+    map.whenReady(() => {
+        drawGrid();
+        updateLabels();
+        if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
+    });
+
+    // 9. 圖例 (Legend)
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function () {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = "<h4>🗺️ 行政區劃</h4>";
+        Object.keys(hierarchy).forEach(prov => {
+            div.innerHTML += `<div style="font-weight:bold; color:#d35400; margin-top:5px;">${prov}省</div>`;
+            Object.keys(hierarchy[prov]).forEach(county => {
+                Array.from(hierarchy[prov][county]).forEach(dist => {
+                    const color = districtColors[`${county}-${dist}`];
+                    div.innerHTML += `<div class="legend-item"><i class="legend-color" style="background:${color}"></i>${county}縣 ${dist==='直轄'?'(直轄)':dist+'郡'}</div>`;
+                });
+            });
+        });
+        return div;
+    };
+    legend.addTo(map);
+
+    // 10. 自動抓取 GitHub 版本 (放在最後，且包裹在獨立的 async 中，避免報錯中斷地圖)
+    (async function fetchVersion() {
+        const display = document.getElementById('version-display');
+        try {
+            // 解析 GitHub Repo 資訊
+            const host = window.location.hostname;
+            const path = window.location.pathname.split('/').filter(x => x);
+            const user = host.split('.')[0];
+            const repo = path[0];
+
+            if (host.includes('github.io')) {
+                const api = `https://api.github.com/repos/${user}/${repo}/commits?per_page=1`;
+                const res = await fetch(api);
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                const date = new Date(data[0].commit.committer.date);
+                display.innerText = "最後更新: " + date.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
+            } else {
+                display.innerText = "本地測試模式";
+            }
+        } catch (e) {
+            display.innerText = "版本: GitHub 讀取超時";
+        }
+    })();
 </script>
 </body>
 </html>
