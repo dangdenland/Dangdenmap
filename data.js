@@ -11,7 +11,7 @@ var countyHues = {
 var rawData = [
     // --- 中京省 ---
     { id: 1, name: "東田", en: "Tang-tian", abbr: "東", x: -751, y: -172, h: 64, prov: "中京", pref: "大成", county: "南安", dist: "東樹" },
-    { id: 2, name: "赤樹", en: "Tshiah-tshu", abbr: "赤", x: -131, y: -254, h: 67, prov: "中京", pref: "大成", county: "南安", dist: "東樹", mapUrl: "TshiahTshiu-map.html" },
+    { id: 2, name: "赤樹", en: "Tshiah-tshu", abbr: "赤", x: -131, y: -254, h: 67, prov: "中京", pref: "大成", county: "南安", dist: "東樹", mapUrl: "maps/TshiahTshiu-map.html" },
     { id: 5, name: "大田", en: "Tai-tian", abbr: "大", x: 148, y: 175, h: 62, prov: "中京", pref: "大成", county: "南安", dist: "東樹" },
     { id: 6, name: "東湖", en: "Tang-oo", abbr: "湖", x: 52, y: 30, h: 69, prov: "中京", pref: "大成", county: "南安", dist: "東樹" },
     { id: 7, name: "東仁", en: "Tang-jin", abbr: "仁", x: -16, y: 73, h: 62, prov: "中京", pref: "大成", county: "南安", dist: "東樹" },
