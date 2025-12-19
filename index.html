@@ -3,39 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>村莊地圖 - 穩定版</title>
+    <title>村莊地圖 - 穩定修復版</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; background-color: #f5f5f5; }
         #map { height: 100vh; width: 100vw; }
-        
         .legend { background: rgba(255, 255, 255, 0.95); padding: 10px 15px; border-radius: 5px; border: 1px solid #bbb; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 13px; max-height: 60vh; overflow-y: auto; }
         .legend h4 { margin: 0 0 8px 0; font-size: 15px; border-bottom: 2px solid #666; padding-bottom: 5px; }
         .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
-        .legend-color { width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; border: 1px solid #666; flex-shrink: 0; }
-        
-        .changelog-btn {
-            position: absolute; top: 80px; left: 10px; z-index: 1000;
-            background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
-            padding: 5px 10px; font-size: 13px; font-weight: bold; color: #333;
-            text-decoration: none; box-shadow: 0 1px 5px rgba(0,0,0,0.4);
-        }
-
-        .version-badge {
-            position: absolute; top: 120px; left: 10px; z-index: 1000;
-            background: rgba(0, 0, 0, 0.7); color: #0f0;
-            padding: 4px 8px; border-radius: 4px; font-size: 11px;
-            font-family: monospace; pointer-events: none;
-            border: 1px solid rgba(0, 255, 0, 0.3);
-        }
-
-        .grid-label { font-size: 10px; color: #888; white-space: nowrap; font-family: monospace; }
-        .village-label-content { 
-            position: absolute; transform: translate(-50%, -50%);
-            display: inline-block; width: max-content; font-size: 12px; font-weight: bold; 
-            background-color: rgba(255,255,255,0.95); padding: 3px 7px; border: 1px solid #666; 
-            border-radius: 4px; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); pointer-events: auto;
-        }
+        .legend-color { width: 14px; height: 14px; margin-right: 8px; border-radius: 50%; border: 1px solid #666; flex-shrink: 0; }
+        .changelog-btn { position: absolute; top: 80px; left: 10px; z-index: 1000; background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px; padding: 5px 10px; font-size: 13px; font-weight: bold; color: #333; text-decoration: none; }
+        .version-badge { position: absolute; top: 120px; left: 10px; z-index: 1000; background: rgba(0, 0, 0, 0.7); color: #0f0; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; border: 1px solid rgba(0, 255, 0, 0.3); }
+        .grid-label { font-size: 10px; color: #888; font-family: monospace; text-shadow: 1px 1px 0 #fff; }
+        .village-label-content { position: absolute; transform: translate(-50%, -50%); display: inline-block; font-size: 12px; font-weight: bold; background-color: rgba(255,255,255,0.95); padding: 3px 7px; border: 1px solid #666; border-radius: 4px; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); pointer-events: auto; }
     </style>
 </head>
 <body>
@@ -49,11 +29,12 @@
 <script src="data.js"></script>
 
 <script>
-    // 1. 初始化環境變數
-    const safeSettings = (typeof mapSettings !== 'undefined') ? mapSettings : { imageName: "map_bg.jpg", minX: -2560, maxX: 8928, minY: -9728, maxY: 880 };
+    // --- 1. 資料安全檢查 ---
+    const safeSettings = (typeof mapSettings !== 'undefined') ? mapSettings : { imageName: "map_bg.jpg", minX: -2000, maxX: 10000, minY: -10000, maxY: 1000 };
     const safeData = (typeof rawData !== 'undefined') ? rawData : [];
+    const safeHues = (typeof countyHues !== 'undefined') ? countyHues : {};
 
-    // 2. 初始化地圖
+    // --- 2. 初始化地圖 ---
     const map = L.map('map', { 
         crs: L.CRS.Simple, 
         minZoom: -6, 
@@ -62,18 +43,21 @@
         attributionControl: false 
     });
 
-    // 3. 定義圖層
+    // --- 3. 定義圖層組 ---
+    const blankLayer = L.layerGroup().addTo(map); // 預設空白背景
     const villageLayer = L.layerGroup().addTo(map);
     const labelLayer = L.layerGroup().addTo(map); 
     const leaderLineLayer = L.layerGroup().addTo(map);
     const gridLayer = L.layerGroup().addTo(map);
-    const railwayLayer = L.layerGroup();
+    const railwayLayer = L.layerGroup().addTo(map);
     const railwayConstructionLayer = L.layerGroup();
-    const blankLayer = L.layerGroup().addTo(map); // 預設空白背景
+    const mapImageLayer = L.imageOverlay(safeSettings.imageName, [[-safeSettings.minY, safeSettings.minX], [-safeSettings.maxY, safeSettings.maxX]], { opacity: 0.85 });
 
-    // 4. 計算行政區顏色 (依據 data.js)
+    // --- 4. 建立座標索引與行政區顏色 ---
+    const coordMap = {};
     const hierarchy = {};
     safeData.forEach(v => {
+        coordMap[v.name] = [-v.y, v.x];
         if (!hierarchy[v.prov]) hierarchy[v.prov] = {};
         if (!hierarchy[v.prov][v.county]) hierarchy[v.prov][v.county] = new Set();
         hierarchy[v.prov][v.county].add(v.dist || "直轄");
@@ -83,15 +67,30 @@
     Object.keys(hierarchy).forEach(prov => {
         Object.keys(hierarchy[prov]).forEach(county => {
             const districts = Array.from(hierarchy[prov][county]).sort();
-            const baseHue = (typeof countyHues !== 'undefined' && countyHues[county] !== undefined) ? countyHues[county] : 0;
+            const baseHue = safeHues[county] || 0;
             districts.forEach((dist, index) => {
                 const key = `${county}-${dist}`;
-                districtColors[key] = (county === "未定") ? "#7f8c8d" : `hsl(${baseHue}, 80%, 50%)`;
+                districtColors[key] = (county === "未定") ? "#7f8c8d" : `hsl(${baseHue}, 80%, ${districts.length > 1 ? 35 + (index/(districts.length-1))*35 : 50}%)`;
             });
         });
     });
 
-    // 5. 繪製村莊與標籤
+    // --- 5. 繪製鐵路 (修正：新增執行指令) ---
+    function drawRailways(routes, style, layer) {
+        if(!routes) return;
+        routes.forEach(routeStr => {
+            const stations = routeStr.split("-");
+            const latLngs = [];
+            stations.forEach(name => { if (coordMap[name]) latLngs.push(coordMap[name]); });
+            if (latLngs.length > 1) L.polyline(latLngs, style).addTo(layer);
+        });
+    }
+    if(typeof railwayRoutesData !== 'undefined') {
+        drawRailways(railwayRoutesData.completed, { color: '#333', weight: 3, opacity: 0.7 }, railwayLayer);
+        drawRailways(railwayRoutesData.construction, { color: '#e67e22', weight: 3, opacity: 0.7, dashArray: '5, 10' }, railwayConstructionLayer);
+    }
+
+    // --- 6. 繪製村莊標記與標籤 ---
     const labelObjects = [];
     const bounds = [];
     safeData.forEach(v => {
@@ -100,66 +99,62 @@
         const distKey = v.dist || "直轄";
         const color = districtColors[`${v.county}-${distKey}`] || "#333";
         
-        const popupContent = `<strong>${v.name}</strong><br>${v.prov}省 ${v.county}縣<br>座標: (${v.x}, ${v.y})`;
-        
-        L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#000", weight: 1.5, fillOpacity: 1 }).bindPopup(popupContent).addTo(villageLayer);
+        const popup = `<strong>${v.name}</strong><br>${v.prov}省 ${v.county}縣<br>座標: (${v.x}, ${v.y})`;
+        L.circleMarker(latLng, { radius: 5, fillColor: color, color: "#000", weight: 1.5, fillOpacity: 1 }).bindPopup(popup).addTo(villageLayer);
 
-        const leaderLine = L.polyline([latLng, latLng], { color: '#666', weight: 1, opacity: 0 }).addTo(leaderLineLayer);
-        const labelMarker = L.marker(latLng, {
+        const line = L.polyline([latLng, latLng], { color: '#666', weight: 1, opacity: 0 }).addTo(leaderLineLayer);
+        const label = L.marker(latLng, {
             icon: L.divIcon({ className: 'village-label-wrapper', html: `<div class="village-label-content">${v.name}</div>`, iconSize: [0, 0] }),
             draggable: true
-        }).bindPopup(popupContent).addTo(labelLayer);
+        }).bindPopup(popup).addTo(labelLayer);
         
-        labelMarker.on('drag', function(e) {
-            leaderLine.setLatLngs([latLng, e.target.getLatLng()]);
-            leaderLine.setStyle({opacity: 0.6});
-            labelMarker.isManualMoved = true;
+        label.on('drag', function(e) {
+            line.setLatLngs([latLng, e.target.getLatLng()]);
+            line.setStyle({opacity: 0.5});
+            label.isManualMoved = true;
         });
-        labelObjects.push({ marker: labelMarker, line: leaderLine, origin: latLng });
+        labelObjects.push({ marker: label, line: line, origin: latLng });
     });
 
-    // 6. 避讓演算法 (防止覆蓋)
+    // --- 7. 避讓與格線函數 ---
     function updateLabels() {
         const currentBounds = map.getBounds();
-        const visibleLabels = [];
+        const visible = [];
         labelObjects.forEach(obj => {
             if(!obj.marker.isManualMoved) obj.marker.setLatLng(obj.origin);
             if(currentBounds.contains(obj.origin)) {
                 const pt = map.latLngToContainerPoint(obj.origin);
-                visibleLabels.push({ obj, x: pt.x, y: pt.y, ox: pt.x, oy: pt.y });
+                visible.push({ obj, x: pt.x, y: pt.y, ox: pt.x, oy: pt.y });
             }
         });
-
-        const minDist = 45, forcePush = 30; 
+        const forcePush = 30; 
         for(let k=0; k<15; k++) {
-            visibleLabels.forEach(a => {
+            visible.forEach(a => {
                 if(a.obj.marker.isManualMoved) return;
-                if (Math.sqrt(Math.pow(a.x-a.ox,2)+Math.pow(a.y-a.oy,2)) < forcePush) { a.y -= 2; }
-                visibleLabels.forEach(b => {
+                if (Math.sqrt(Math.pow(a.x-a.ox,2)+Math.pow(a.y-a.oy,2)) < forcePush) a.y -= 2;
+                visible.forEach(b => {
                     if (a === b) return;
                     const dx = a.x - b.x, dy = a.y - b.y, d = Math.sqrt(dx*dx + dy*dy);
-                    if (d < minDist) { a.x += (dx/d)*2; a.y += (dy/d)*2; }
+                    if (d < 45) { a.x += (dx/d)*2; a.y += (dy/d)*2; }
                 });
             });
         }
-        visibleLabels.forEach(item => {
+        visible.forEach(item => {
             const newLatLng = map.containerPointToLatLng([item.x, item.y]);
             if(!item.obj.marker.isManualMoved) item.obj.marker.setLatLng(newLatLng);
-            const dist = map.latLngToContainerPoint(item.obj.marker.getLatLng()).distanceTo([item.ox, item.oy]);
-            if (dist > 12) {
+            if (map.latLngToContainerPoint(item.obj.marker.getLatLng()).distanceTo([item.ox, item.oy]) > 12) {
                 item.obj.line.setLatLngs([item.obj.origin, item.obj.marker.getLatLng()]);
                 item.obj.line.setStyle({opacity: 0.5});
             } else { item.obj.line.setStyle({opacity: 0}); }
         });
     }
 
-    // 7. 格線繪製 (水平垂直精準對齊版)
     function drawGrid() {
         gridLayer.clearLayers();
         const zoom = map.getZoom();
         let step = zoom >= 1 ? 100 : (zoom >= -1 ? 500 : 1000);
         const b = { minX: safeSettings.minX - 2000, maxX: safeSettings.maxX + 2000, minY: safeSettings.minY - 2000, maxY: safeSettings.maxY + 2000 };
-        const style = { color: '#ccc', weight: 1, dashArray: '4, 4', opacity: 0.6 };
+        const style = { color: '#ccc', weight: 1, dashArray: '4, 4', opacity: 0.5 };
         
         for (let x = Math.floor(b.minX / step) * step; x <= b.maxX; x += step) {
             L.polyline([[-b.minY, x], [-b.maxY, x]], style).addTo(gridLayer);
@@ -171,11 +166,8 @@
         }
     }
 
-    // 8. 介面與初始化
-    const mapImageLayer = L.imageOverlay(safeSettings.imageName, [[-safeSettings.minY, safeSettings.minX], [-safeSettings.maxY, safeSettings.maxX]], { opacity: 0.85 });
-    const baseMaps = { "空白背景": blankLayer, "地形圖": mapImageLayer };
-    const overlayMaps = { "村莊點位": villageLayer, "名稱標籤": labelLayer, "格線": gridLayer };
-    L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+    // --- 8. 初始化控制與事件 ---
+    L.control.layers({ "空白背景": blankLayer, "地形圖": mapImageLayer }, { "村莊點位": villageLayer, "名稱標籤": labelLayer, "格線": gridLayer, "鐵路 (已通車)": railwayLayer, "鐵路 (興建中)": railwayConstructionLayer }, { collapsed: false }).addTo(map);
 
     map.on('zoomend moveend', updateLabels);
     map.on('zoomend', drawGrid);
@@ -186,12 +178,13 @@
         if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
     });
 
-    // 9. 圖例 (Legend)
+    // --- 9. 圖例 ---
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function () {
         const div = L.DomUtil.create('div', 'legend');
         div.innerHTML = "<h4>🗺️ 行政區劃</h4>";
-        Object.keys(hierarchy).forEach(prov => {
+        ["中京", "海北", "未定"].forEach(prov => {
+            if (!hierarchy[prov]) return;
             div.innerHTML += `<div style="font-weight:bold; color:#d35400; margin-top:5px;">${prov}省</div>`;
             Object.keys(hierarchy[prov]).forEach(county => {
                 Array.from(hierarchy[prov][county]).forEach(dist => {
@@ -204,19 +197,16 @@
     };
     legend.addTo(map);
 
-    // 10. 自動抓取 GitHub 版本 (放在最後，且包裹在獨立的 async 中，避免報錯中斷地圖)
+    // --- 10. 非同步抓取版本 (GitHub API) ---
     (async function fetchVersion() {
         const display = document.getElementById('version-display');
         try {
-            // 解析 GitHub Repo 資訊
             const host = window.location.hostname;
             const path = window.location.pathname.split('/').filter(x => x);
-            const user = host.split('.')[0];
-            const repo = path[0];
-
             if (host.includes('github.io')) {
-                const api = `https://api.github.com/repos/${user}/${repo}/commits?per_page=1`;
-                const res = await fetch(api);
+                const user = host.split('.')[0];
+                const repo = path[0] || "";
+                const res = await fetch(`https://api.github.com/repos/${user}/${repo}/commits?per_page=1`);
                 if (!res.ok) throw new Error();
                 const data = await res.json();
                 const date = new Date(data[0].commit.committer.date);
@@ -225,7 +215,7 @@
                 display.innerText = "本地測試模式";
             }
         } catch (e) {
-            display.innerText = "版本: GitHub 讀取超時";
+            display.innerText = "版本: 抓取超時";
         }
     })();
 </script>
